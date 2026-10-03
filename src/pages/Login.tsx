@@ -1,11 +1,11 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { ArrowRight, Eye, EyeOff, WalletCards } from '../components/icons'
+import { ArrowRight, Eye, EyeOff, Google, WalletCards } from '../components/icons'
 import { useAuth } from '../context/AuthContext'
 import { firebaseErrorMessage } from '../utils/firebaseErrors'
 
 export function Login() {
-  const { user, login, loginDemo, demoMode } = useAuth()
+  const { user, login, loginWithGoogle, firebaseConfigured, authError } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail] = useState('')
@@ -14,8 +14,8 @@ export function Login() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  if (user) return <Navigate to="/" replace />
-  const destination = (location.state as { from?: string } | null)?.from || '/'
+  if (user) return <Navigate to="/dashboard" replace />
+  const destination = (location.state as { from?: string } | null)?.from || '/dashboard'
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -31,7 +31,22 @@ export function Login() {
     }
   }
 
+  async function continueWithGoogle() {
+    setError('')
+    setBusy(true)
+    try {
+      await loginWithGoogle()
+      navigate('/dashboard', { replace: true })
+    } catch (caught) {
+      setError(firebaseErrorMessage(caught, 'Unable to sign in with Google. Please try again.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return <AuthFrame title="Welcome back" subtitle="Sign in to review your accounts and activity.">
+    {authError && <p role="alert" className="mt-5 rounded-md border border-[var(--negative)]/25 bg-[var(--negative-subtle)] px-3 py-2.5 text-xs text-[var(--negative)]">{authError}</p>}
+    {!firebaseConfigured && <p role="status" className="mt-5 rounded-md border border-[var(--line)] bg-[var(--surface-input)] px-3 py-2.5 text-xs leading-relaxed text-[var(--text-secondary)]">Authentication is not configured yet. Add your Firebase values to <code className="text-[var(--text-primary)]">.env.local</code>, then enable Email/Password and Google sign-in in Firebase Authentication.</p>}
     <form onSubmit={(event) => void submit(event)} className="mt-6 space-y-4">
       <label className="block text-xs font-medium text-[var(--text-secondary)]">Email address
         <input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="mt-1.5 h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-input)] px-3.5 text-sm text-[var(--text-primary)] outline-none transition placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]" />
@@ -44,12 +59,10 @@ export function Login() {
       </label>
       <div className="flex justify-end"><Link to="/reset-password" className="text-xs font-medium text-[var(--accent)] hover:underline">Forgot password?</Link></div>
       {error && <p role="alert" className="rounded-md border border-[var(--negative)]/25 bg-[var(--negative-subtle)] px-3 py-2.5 text-xs text-[var(--negative)]">{error}</p>}
-      <button disabled={busy} className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--accent)] text-sm font-semibold text-[#081725] transition hover:brightness-110 disabled:opacity-50">{busy ? 'Signing in…' : 'Sign in'} {!busy && <ArrowRight size={14} />}</button>
+      <button disabled={busy || !firebaseConfigured} className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--accent)] text-sm font-semibold text-white transition hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-50">{busy ? 'Signing in…' : 'Sign in'} {!busy && <ArrowRight size={14} />}</button>
     </form>
-    {demoMode && <div className="mt-5 border-t border-[var(--line)] pt-5">
-      <button type="button" onClick={() => { loginDemo(); navigate('/', { replace: true }) }} className="h-10 w-full rounded-md border border-[var(--line)] text-xs font-medium text-[var(--text-secondary)] transition hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]">Explore demo preview</button>
-      <p className="mt-2 text-center text-xs leading-relaxed text-[var(--text-muted)]">Demo preview uses sample data saved only in this browser.</p>
-    </div>}
+    <div className="my-5 flex items-center gap-3 text-[11px] text-[var(--text-muted)]"><span className="h-px flex-1 bg-[var(--line)]" /><span>OR</span><span className="h-px flex-1 bg-[var(--line)]" /></div>
+    <button type="button" disabled={busy || !firebaseConfigured} onClick={() => void continueWithGoogle()} className="flex h-11 w-full items-center justify-center gap-2.5 rounded-md border border-[var(--line)] bg-[var(--surface-input)] text-sm font-medium text-[var(--text-primary)] transition hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-50"><Google size={16} /> Continue with Google</button>
     <p className="mt-6 text-center text-xs text-[var(--text-secondary)]">New to FinFlow? <Link to="/register" className="font-semibold text-[var(--text-primary)] hover:text-[var(--accent)]">Create an account</Link></p>
   </AuthFrame>
 }

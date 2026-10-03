@@ -1,12 +1,8 @@
 import { collection, deleteDoc, doc, getDocs, query, runTransaction, serverTimestamp, setDoc, where } from 'firebase/firestore'
 import { COLLECTIONS, db } from './firebase'
-import { demoDashboard } from './mockData'
 import type { DashboardData, NewSavingsGoal, NewTransaction, NewWallet, SavingsGoal, Transaction, Wallet } from '../types'
 import { expenseCategoryColor, normalizeExpenseCategory } from '../utils/finance'
 
-const DEMO_TRANSACTIONS_KEY = 'finflow-demo-transactions'
-const DEMO_WALLETS_KEY = 'finflow-demo-wallets'
-const DEMO_GOALS_KEY = 'finflow-demo-goals'
 function normalizeTransaction(transaction: Partial<Transaction> & { id: string; amount: number; direction: 'income' | 'expense' }): Transaction {
   const name = transaction.name || 'Transaction'
   return {
@@ -21,33 +17,6 @@ function normalizeTransaction(transaction: Partial<Transaction> & { id: string; 
     paymentMethod: transaction.paymentMethod,
     walletId: transaction.walletId,
     notes: transaction.notes,
-  }
-}
-
-function readDemoTransactions(): Transaction[] {
-  try {
-    const parsed = JSON.parse(localStorage.getItem(DEMO_TRANSACTIONS_KEY) || '[]') as Partial<Transaction>[]
-    return parsed.filter((item): item is Partial<Transaction> & { id: string; amount: number; direction: 'income' | 'expense' } => Boolean(item.id && typeof item.amount === 'number' && (item.direction === 'income' || item.direction === 'expense'))).map(normalizeTransaction)
-  } catch {
-    return []
-  }
-}
-
-function readDemoWallets(): Wallet[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(DEMO_WALLETS_KEY) || '[]')
-    return Array.isArray(parsed) ? parsed as Wallet[] : []
-  } catch {
-    return []
-  }
-}
-
-function readDemoGoals(): SavingsGoal[] {
-  try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(DEMO_GOALS_KEY) || '[]')
-    return Array.isArray(parsed) ? parsed as SavingsGoal[] : []
-  } catch {
-    return []
   }
 }
 
@@ -102,29 +71,8 @@ function deriveData(transactions: Transaction[], wallets: Wallet[], goals: Savin
 }
 
 export async function getDashboardData(uid: string): Promise<DashboardData> {
-  if (!db || uid === 'demo') {
-    const created = readDemoTransactions()
-    const transactions = [...demoDashboard.transactions, ...created]
-    const additionalWallets = readDemoWallets()
-    const income = created.filter((item) => item.direction === 'income').reduce((sum, item) => sum + item.amount, 0)
-    const expenses = created.filter((item) => item.direction === 'expense').reduce((sum, item) => sum + item.amount, 0)
-    return {
-      ...demoDashboard,
-      balance: demoDashboard.balance + additionalWallets.reduce((sum, wallet) => sum + Number(wallet.balance || 0), 0) + income - expenses,
-      income: demoDashboard.income + income,
-      expenses: demoDashboard.expenses + expenses,
-      savings: demoDashboard.savings + income - expenses,
-      wallets: [...demoDashboard.wallets, ...additionalWallets].map((wallet) => ({ ...wallet, balance: wallet.balance + created.filter((item) => item.walletId === wallet.id).reduce((sum, item) => sum + (item.direction === 'income' ? item.amount : -item.amount), 0) })),
-      goals: [...demoDashboard.goals, ...readDemoGoals()],
-      transactions,
-      chart: demoDashboard.chart.map((entry) => ({ ...entry })),
-      trend: demoDashboard.trend.map((entry) => ({ ...entry })),
-      spending: demoDashboard.spending,
-    }
-  }
-
   const firestore = db
-  if (!firestore) return demoDashboard
+  if (!firestore) throw new Error('Financial data is unavailable. Check your Firebase configuration.')
   const read = async <T extends Record<string, unknown>>(name: string) => {
     const snapshot = await getDocs(query(collection(firestore, name), where('userId', '==', uid)))
     return snapshot.docs.map((record) => ({ id: record.id, ...record.data() }) as unknown as T)
@@ -137,45 +85,45 @@ export async function getDashboardData(uid: string): Promise<DashboardData> {
   return deriveData(rawTransactions.map((item) => normalizeTransaction(item)), wallets, goals)
 }
 
-export async function saveWallet(uid: string, input: NewWallet, walletId?: string): Promise<Wallet> {
-  const id = walletId || globalThis.crypto?.randomUUID?.() || `${Date.now()}`
+export async function saveWallet(uid: string, input: NewWallet, walletId?: string, requestId?: string): Promise<Wallet> {
+  const id = walletId || requestId || globalThis.crypto?.randomUUID?.() || `${Date.now()}`
   const wallet = { ...input, id, status: input.status || 'active' }
-  if (!db || uid === 'demo') {
-    const wallets = readDemoWallets()
-    const next = walletId ? wallets.map((item) => item.id === walletId ? wallet : item) : [...wallets, wallet]
-    localStorage.setItem(DEMO_WALLETS_KEY, JSON.stringify(next))
-    return wallet
-  }
+  if (!db) throw new Error('Wallet storage is unavailable. Check your Firebase configuration.')
+  if (!navigator.onLine) throw new Error('Your device is offline. Reconnect to the internet, then try saving the account again.')
   const reference = doc(db, COLLECTIONS.wallets, id)
-  await setDoc(reference, { ...wallet, userId: uid, updatedAt: serverTimestamp(), ...(!walletId ? { createdAt: serverTimestamp() } : {}) }, { merge: Boolean(walletId) })
+  const write = setDoc(reference, { ...wallet, userId: uid, updatedAt: serverTimestamp(), ...(!walletId ? { createdAt: serverTimestamp() } : {}) }, { merge: Boolean(walletId) })
+  await new Promise<void>((resolve, reject) => {
+    const timeout = window.setTimeout(() => {
+      reject(new Error('Firestore has not confirmed this save after 15 seconds. Reload the app to apply the network transport fix. If it still times out, verify the published rules and that the Firestore database in finflow-37b6e is in Native mode. Retrying this request will not create a duplicate account.'))
+    }, 15_000)
+    write.then(() => {
+      window.clearTimeout(timeout)
+      resolve()
+    }, (error: unknown) => {
+      window.clearTimeout(timeout)
+      reject(error)
+    })
+  })
   return wallet
 }
 
 export async function deleteWallet(uid: string, walletId: string): Promise<void> {
-  if (!db || uid === 'demo') {
-    localStorage.setItem(DEMO_WALLETS_KEY, JSON.stringify(readDemoWallets().filter((wallet) => wallet.id !== walletId)))
-    return
-  }
+  if (!uid) throw new Error('Sign in again before deleting a wallet.')
+  if (!db) throw new Error('Wallet storage is unavailable. Check your Firebase configuration.')
   await deleteDoc(doc(db, COLLECTIONS.wallets, walletId))
 }
 
 export async function saveSavingsGoal(uid: string, input: NewSavingsGoal, goalId?: string): Promise<SavingsGoal> {
   const id = goalId || globalThis.crypto?.randomUUID?.() || `${Date.now()}`
   const goal = { ...input, id }
-  if (!db || uid === 'demo') {
-    const goals = readDemoGoals()
-    localStorage.setItem(DEMO_GOALS_KEY, JSON.stringify(goalId ? goals.map((item) => item.id === goalId ? goal : item) : [...goals, goal]))
-    return goal
-  }
+  if (!db) throw new Error('Savings goal storage is unavailable. Check your Firebase configuration.')
   await setDoc(doc(db, COLLECTIONS.savingsGoals, id), { ...goal, userId: uid, updatedAt: serverTimestamp(), ...(!goalId ? { createdAt: serverTimestamp() } : {}) }, { merge: Boolean(goalId) })
   return goal
 }
 
 export async function deleteSavingsGoal(uid: string, goalId: string): Promise<void> {
-  if (!db || uid === 'demo') {
-    localStorage.setItem(DEMO_GOALS_KEY, JSON.stringify(readDemoGoals().filter((goal) => goal.id !== goalId)))
-    return
-  }
+  if (!uid) throw new Error('Sign in again before deleting a savings goal.')
+  if (!db) throw new Error('Savings goal storage is unavailable. Check your Firebase configuration.')
   await deleteDoc(doc(db, COLLECTIONS.savingsGoals, goalId))
 }
 
@@ -183,19 +131,14 @@ export async function saveTransaction(uid: string, input: NewTransaction, transa
   const id = transactionId || globalThis.crypto?.randomUUID?.() || `${Date.now()}`
   const normalized = normalizeTransaction({ ...input, id })
   const firestore = db
-  if (!firestore || uid === 'demo') {
-    const records = readDemoTransactions()
-    if (transactionId && !records.some((item) => item.id === transactionId)) throw new Error('Sample transactions cannot be edited.')
-    localStorage.setItem(DEMO_TRANSACTIONS_KEY, JSON.stringify(transactionId ? records.map((item) => item.id === transactionId ? normalized : item) : [...records, normalized]))
-    return normalized
-  }
+  if (!firestore) throw new Error('Transaction storage is unavailable. Check your Firebase configuration.')
 
   const transactionRef = transactionId ? doc(firestore, COLLECTIONS.transactions, transactionId) : doc(collection(firestore, COLLECTIONS.transactions))
   await runTransaction(firestore, async (transaction) => {
     const previousSnapshot = transactionId ? await transaction.get(transactionRef) : null
     if (transactionId && (!previousSnapshot?.exists() || previousSnapshot.data().userId !== uid)) throw new Error('This transaction is unavailable.')
     const previous = previousSnapshot?.data() as (Transaction & { userId: string }) | undefined
-    const walletIds = [...new Set([previous?.walletId, input.walletId].filter((walletId): walletId is string => Boolean(walletId && !walletId.startsWith('sample-'))))]
+    const walletIds = [...new Set([previous?.walletId, input.walletId].filter((walletId): walletId is string => Boolean(walletId)))]
     const walletEntries = await Promise.all(walletIds.map(async (walletId) => {
       const reference = doc(firestore, COLLECTIONS.wallets, walletId)
       return [walletId, reference, await transaction.get(reference)] as const
@@ -227,19 +170,14 @@ export async function saveTransaction(uid: string, input: NewTransaction, transa
 }
 
 export async function deleteTransaction(uid: string, transactionId: string): Promise<void> {
-  if (!db || uid === 'demo') {
-    const records = readDemoTransactions()
-    if (!records.some((item) => item.id === transactionId)) throw new Error('Sample transactions cannot be deleted.')
-    localStorage.setItem(DEMO_TRANSACTIONS_KEY, JSON.stringify(records.filter((item) => item.id !== transactionId)))
-    return
-  }
+  if (!db) throw new Error('Transaction storage is unavailable. Check your Firebase configuration.')
   const firestore = db
   const reference = doc(firestore, COLLECTIONS.transactions, transactionId)
   await runTransaction(firestore, async (transaction) => {
     const snapshot = await transaction.get(reference)
     if (!snapshot.exists() || snapshot.data().userId !== uid) throw new Error('This transaction is unavailable.')
     const record = snapshot.data() as Transaction
-    const walletReference = record.walletId && !record.walletId.startsWith('sample-') ? doc(firestore, COLLECTIONS.wallets, record.walletId) : null
+    const walletReference = record.walletId ? doc(firestore, COLLECTIONS.wallets, record.walletId) : null
     const walletSnapshot = walletReference ? await transaction.get(walletReference) : null
     if (walletReference && walletSnapshot?.exists() && walletSnapshot.data().userId === uid) {
       const reverse = record.direction === 'income' ? -Number(record.amount) : Number(record.amount)

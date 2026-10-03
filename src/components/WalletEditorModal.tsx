@@ -7,10 +7,14 @@ type Props = {
   open: boolean
   wallet?: Wallet
   onClose: () => void
-  onSave: (value: NewWallet, walletId?: string) => Promise<void>
+  onSave: (value: NewWallet, walletId?: string, requestId?: string) => Promise<void>
 }
 
 const inputClass = 'mt-1.5 h-10 w-full rounded-md border border-[var(--line)] bg-[var(--surface-input)] px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]'
+
+function createRequestId() {
+  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
 
 export function WalletEditorModal({ open, wallet, onClose, onSave }: Props) {
   const [name, setName] = useState('')
@@ -18,6 +22,7 @@ export function WalletEditorModal({ open, wallet, onClose, onSave }: Props) {
   const [balance, setBalance] = useState('')
   const [brand, setBrand] = useState('')
   const [status, setStatus] = useState<'active' | 'inactive'>('active')
+  const [requestId, setRequestId] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -25,9 +30,10 @@ export function WalletEditorModal({ open, wallet, onClose, onSave }: Props) {
     if (!open) return
     setName(wallet?.name || '')
     setLastFour(wallet?.number.replace(/\D/g, '').slice(-4) || '')
-    setBalance(String(wallet?.balance ?? ''))
+    setBalance(String(wallet?.balance ?? 0))
     setBrand(wallet?.brand || '')
     setStatus(wallet?.status || 'active')
+    setRequestId(wallet ? '' : createRequestId())
     setError('')
   }, [open, wallet])
 
@@ -62,7 +68,9 @@ export function WalletEditorModal({ open, wallet, onClose, onSave }: Props) {
         brand: brand.trim() || 'Account',
         status,
       }
-      await onSave(value, wallet?.id)
+      const operationId = requestId || createRequestId()
+      setRequestId(operationId)
+      await onSave(value, wallet?.id, operationId)
       onClose()
     } catch (caught) {
       setError(firebaseErrorMessage(caught, 'The account could not be saved.'))

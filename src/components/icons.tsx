@@ -47,6 +47,7 @@ import {
   faXmark,
 } from '@fortawesome/free-solid-svg-icons'
 import { faEnvelopeOpen } from '@fortawesome/free-regular-svg-icons'
+import { faGoogle } from '@fortawesome/free-brands-svg-icons'
 
 type IconProps = {
   size?: number
@@ -86,6 +87,7 @@ export const HelpCircle = icon(faCircleQuestion)
 export const LayoutDashboard = icon(faHouse)
 export const LoaderCircle = icon(faSpinner)
 export const LogOut = icon(faRightFromBracket)
+export const Google = icon(faGoogle)
 export const MailCheck = icon(faEnvelopeOpen)
 export const Messages = icon(faEnvelope)
 export const Menu = icon(faBars)

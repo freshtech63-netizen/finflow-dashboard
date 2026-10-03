@@ -12,6 +12,7 @@ import { useDashboardData } from '../context/DashboardDataContext'
 import { getInvoices, removeInvoice, saveInvoice } from '../lib/invoiceService'
 import type { Invoice, NewInvoice } from '../types'
 import { downloadTransactionsCsv, formatCurrency, formatTransactionDate } from '../utils/finance'
+import { firebaseErrorMessage } from '../utils/firebaseErrors'
 
 type OutletContext = { searchQuery?: string }
 
@@ -77,7 +78,7 @@ export function AnalyticsPage() {
 
 export function TransactionsPage() {
   const { data, deleteTransaction } = useDashboardData()
-  const { preferences, user, demoMode } = useAuth()
+  const { preferences, user } = useAuth()
   const { searchQuery = '' } = useOutletContext<OutletContext>()
   const [direction, setDirection] = useState<'all' | 'income' | 'expense'>('all')
   const [category, setCategory] = useState('all')
@@ -108,14 +109,13 @@ export function TransactionsPage() {
       await deleteTransaction(transaction.id)
       setNotice(`${transaction.name} was deleted.`)
     } catch {
-      setError('This transaction could not be deleted. Sample preview records cannot be changed.')
+      setError('This transaction could not be deleted. Please try again.')
     }
   }
 
   return (
     <div className="space-y-6">
       <PageHeader title="Transactions" subtitle="Search and review activity across your accounts." actions={<div className="flex gap-2"><button type="button" onClick={() => downloadTransactionsCsv(filtered)} disabled={!filtered.length} className="inline-flex h-9 items-center gap-2 rounded-md border border-[var(--line)] px-3 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] disabled:opacity-40"><Download size={14} /> Export</button><button type="button" onClick={() => setAddOpen(true)} className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--accent)] px-3 text-xs font-semibold text-[#081725]"><Plus size={14} /> Add transaction</button></div>} />
-      {demoMode && user?.uid === 'demo' && <p className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-secondary)]">Demo preview · sample records are read-only; new transactions are saved in this browser.</p>}
       {notice && <p role="status" className="rounded-md border border-[var(--positive)]/25 bg-[var(--positive-subtle)] px-3 py-2.5 text-xs text-[var(--positive)]">{notice}</p>}
       {error && <p role="alert" className="rounded-md border border-[var(--negative)]/25 bg-[var(--negative-subtle)] px-3 py-2.5 text-xs text-[var(--negative)]">{error}</p>}
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -135,7 +135,7 @@ export function TransactionsPage() {
         <p className="border-b border-[var(--line)] px-4 py-3 text-xs text-[var(--text-secondary)] sm:px-5">{filtered.length} {filtered.length === 1 ? 'transaction' : 'transactions'}</p>
         {filtered.length ? <><div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(100px,.8fr)_minmax(110px,.8fr)_minmax(120px,.8fr)_88px] px-5 py-3 text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--text-muted)] md:grid"><span>Activity</span><span>Category</span><span>Date</span><span className="text-right">Amount</span><span className="text-right">Actions</span></div><div className="divide-y divide-[var(--line)]">{filtered.map((transaction) => <article key={transaction.id} className="flex min-w-0 items-center gap-2 px-4 py-3.5 md:grid md:grid-cols-[minmax(0,1.5fr)_minmax(100px,.8fr)_minmax(110px,.8fr)_minmax(120px,.8fr)_88px] md:px-5">
           <div className="flex min-w-0 flex-1 items-center gap-3 md:flex-initial"><span className="grid size-9 shrink-0 place-items-center rounded-full bg-[var(--surface-hover)] text-xs font-semibold text-[var(--text-secondary)]">{transaction.initials}</span><div className="min-w-0"><p title={transaction.name} className="max-w-full truncate text-sm font-medium text-[var(--text-primary)]">{transaction.name}</p><p className="mt-0.5 truncate text-xs text-[var(--text-secondary)] md:hidden">{transaction.category} · {formatTransactionDate(transaction.date)}</p></div></div>
-          <span className="hidden truncate text-xs text-[var(--text-secondary)] md:block">{transaction.category}</span><span className="hidden text-xs text-[var(--text-secondary)] md:block">{formatTransactionDate(transaction.date)}</span><span className={`shrink-0 text-right text-sm font-semibold tabular-nums md:text-right ${transaction.direction === 'income' ? 'text-[var(--positive)]' : 'text-[var(--text-primary)]'}`}>{transaction.direction === 'income' ? '+' : '−'}{formatCurrency(transaction.amount, preferences.currency)}</span><div className="flex shrink-0 md:justify-end"><button type="button" onClick={() => { setSelected(transaction); setAddOpen(true) }} aria-label={`Edit ${transaction.name}`} disabled={demoMode && transaction.id.startsWith('tx-')} className="grid size-8 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)] disabled:cursor-not-allowed disabled:opacity-30"><Edit size={14} /></button><button type="button" onClick={() => void remove(transaction)} aria-label={`Delete ${transaction.name}`} disabled={demoMode && transaction.id.startsWith('tx-')} className="grid size-8 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--negative-subtle)] hover:text-[var(--negative)] disabled:cursor-not-allowed disabled:opacity-30"><Trash size={14} /></button></div>
+          <span className="hidden truncate text-xs text-[var(--text-secondary)] md:block">{transaction.category}</span><span className="hidden text-xs text-[var(--text-secondary)] md:block">{formatTransactionDate(transaction.date)}</span><span className={`shrink-0 text-right text-sm font-semibold tabular-nums md:text-right ${transaction.direction === 'income' ? 'text-[var(--positive)]' : 'text-[var(--text-primary)]'}`}>{transaction.direction === 'income' ? '+' : '−'}{formatCurrency(transaction.amount, preferences.currency)}</span><div className="flex shrink-0 md:justify-end"><button type="button" onClick={() => { setSelected(transaction); setAddOpen(true) }} aria-label={`Edit ${transaction.name}`} className="grid size-8 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"><Edit size={14} /></button><button type="button" onClick={() => void remove(transaction)} aria-label={`Delete ${transaction.name}`} className="grid size-8 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--negative-subtle)] hover:text-[var(--negative)]"><Trash size={14} /></button></div>
         </article>)}</div></> : <div className="px-5 py-12 text-center"><p className="text-sm font-medium text-[var(--text-primary)]">{data.transactions.length ? 'No matching transactions' : 'No transactions yet'}</p><p className="mt-1 text-xs text-[var(--text-secondary)]">{data.transactions.length ? 'Try changing or clearing your filters.' : 'Add a transaction to start tracking your cash flow.'}</p></div>}
       </section>
       <AddTransactionModal open={addOpen} transaction={selected} onClose={() => { setAddOpen(false); setSelected(undefined) }} />
@@ -177,7 +177,7 @@ export function ActivityPage() {
 
 export function WalletsPage() {
   const { data, saveWallet, deleteWallet } = useDashboardData()
-  const { preferences, demoMode } = useAuth()
+  const { preferences } = useAuth()
   const [editorOpen, setEditorOpen] = useState(false)
   const [selected, setSelected] = useState<import('../types').Wallet | undefined>()
   const [error, setError] = useState('')
@@ -196,8 +196,8 @@ export function WalletsPage() {
     try {
       await deleteWallet(wallet.id)
       setNotice(`${wallet.name} was removed.`)
-    } catch {
-      setError('This account could not be deleted. Please try again.')
+    } catch (caught) {
+      setError(firebaseErrorMessage(caught, 'This account could not be deleted. Please try again.'))
     } finally {
       setBusyId('')
     }
@@ -206,7 +206,6 @@ export function WalletsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Cards / Wallets" subtitle="Manage account balances and review the activity assigned to each one." actions={<button type="button" onClick={() => openEditor()} className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--accent)] px-3 text-xs font-semibold text-[#081725]"><Plus size={14} /> Add account</button>} />
-      {demoMode && <p className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-secondary)]">Demo preview · changes are saved only in this browser.</p>}
       {notice && <p role="status" className="rounded-md border border-[var(--positive)]/25 bg-[var(--positive-subtle)] px-3 py-2.5 text-xs text-[var(--positive)]">{notice}</p>}
       {error && <p role="alert" className="rounded-md border border-[var(--negative)]/25 bg-[var(--negative-subtle)] px-3 py-2.5 text-xs text-[var(--negative)]">{error}</p>}
       <section className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
@@ -224,13 +223,13 @@ export function WalletsPage() {
           ))}
         </div>
       </section>}
-      <WalletEditorModal open={editorOpen} wallet={selected} onClose={() => setEditorOpen(false)} onSave={async (wallet, id) => { await saveWallet(wallet, id); setNotice(`${wallet.name} ${id ? 'updated' : 'added'}.`); setError('') }} />
+      <WalletEditorModal open={editorOpen} wallet={selected} onClose={() => setEditorOpen(false)} onSave={async (wallet, id, requestId) => { await saveWallet(wallet, id, requestId); setNotice(`${wallet.name} ${id ? 'updated' : 'added'}.`); setError('') }} />
     </div>
   )
 }
 
 export function InvoicesPage() {
-  const { user, preferences, demoMode } = useAuth()
+  const { user, preferences } = useAuth()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -288,7 +287,6 @@ export function InvoicesPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Invoices" subtitle="Create, track, and manage customer invoices." actions={<button type="button" onClick={() => openEditor('create')} className="inline-flex h-9 items-center gap-2 rounded-md bg-[var(--accent)] px-3 text-xs font-semibold text-[#081725]"><Plus size={14} /> New invoice</button>} />
-      {demoMode && <p className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-secondary)]">Demo preview · invoices are saved only in this browser.</p>}
       {notice && <p role="status" className="rounded-md border border-[var(--positive)]/25 bg-[var(--positive-subtle)] px-3 py-2.5 text-xs text-[var(--positive)]">{notice}</p>}
       {error && <p role="alert" className="rounded-md border border-[var(--negative)]/25 bg-[var(--negative-subtle)] px-3 py-2.5 text-xs text-[var(--negative)]">{error}</p>}
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -384,7 +382,7 @@ export function HelpPage() {
           ['How do I add transactions?', 'Use the Add transaction button at the top of the dashboard to record income or spending.'],
           ['Can I change my profile?', 'Open Settings and update your display name, avatar URL, currency, and theme.'],
           ['How are my charts refreshed?', 'Charts update from the shared dashboard data store as soon as new transactions are saved.'],
-          ['Where do my settings save?', 'Profile settings are persisted in the authenticated user profile or demo local profile in demo mode.'],
+          ['Where do my settings save?', 'Profile settings are persisted in your authenticated Firebase user profile.'],
         ].map(([question, answer]) => (
           <div key={question} className="panel p-4 sm:p-5">
             <div className="flex items-start gap-3"><span className="mt-0.5 grid size-8 place-items-center rounded-full bg-[var(--accent-subtle)] text-[var(--accent)]"><HelpCircle size={16} /></span><div><p className="text-[11px] font-semibold text-[var(--text-primary)]">{question}</p><p className="mt-2 text-[10px] leading-relaxed text-[var(--text-secondary)]">{answer}</p></div></div>

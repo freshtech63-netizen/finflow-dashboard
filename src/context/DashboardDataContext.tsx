@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useAuth } from './AuthContext'
 import { deleteSavingsGoal as deleteSavingsGoalRecord, deleteTransaction as deleteTransactionRecord, deleteWallet as deleteWalletRecord, getDashboardData, saveSavingsGoal as saveSavingsGoalRecord, saveTransaction, saveWallet as saveWalletRecord } from '../lib/dashboardService'
-import { emptyDashboard } from '../lib/mockData'
+import { emptyDashboard } from '../lib/dashboardDefaults'
 import type { DashboardData, NewSavingsGoal, NewTransaction, NewWallet, SavingsGoal, Transaction, Wallet } from '../types'
 import { expenseCategoryColor, normalizeExpenseCategory } from '../utils/finance'
 
@@ -12,7 +12,7 @@ type DashboardDataValue = {
   createTransaction: (input: NewTransaction) => Promise<Transaction>
   updateTransaction: (input: NewTransaction, transactionId: string) => Promise<Transaction>
   deleteTransaction: (transactionId: string) => Promise<void>
-  saveWallet: (input: NewWallet, walletId?: string) => Promise<Wallet>
+  saveWallet: (input: NewWallet, walletId?: string, requestId?: string) => Promise<Wallet>
   deleteWallet: (walletId: string) => Promise<void>
   saveSavingsGoal: (input: NewSavingsGoal, goalId?: string) => Promise<SavingsGoal>
   deleteSavingsGoal: (goalId: string) => Promise<void>
@@ -81,9 +81,13 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let active = true
     if (!user) {
+      setData(emptyDashboard)
+      setError('')
       setLoading(false)
       return
     }
+    setData(emptyDashboard)
+    setError('')
     setLoading(true)
     getDashboardData(user.uid).then((result) => {
       if (active) { setData(result); setError('') }
@@ -117,9 +121,9 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
       await deleteTransactionRecord(user.uid, transactionId)
       setData(await getDashboardData(user.uid))
     },
-    saveWallet: async (input, walletId) => {
+    saveWallet: async (input, walletId, requestId) => {
       if (!user) throw new Error('Sign in again before saving a wallet.')
-      const wallet = await saveWalletRecord(user.uid, input, walletId)
+      const wallet = await saveWalletRecord(user.uid, input, walletId, requestId)
       setData((current) => {
         const existing = current.wallets.find((item) => item.id === wallet.id)
         return {

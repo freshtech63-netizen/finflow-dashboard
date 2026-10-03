@@ -10,7 +10,7 @@ const inputClass = 'mt-1.5 h-10 w-full rounded-md border border-[var(--line)] bg
 
 export function SavingsGoalsPage() {
   const { data, saveSavingsGoal, deleteSavingsGoal } = useDashboardData()
-  const { preferences, user, demoMode } = useAuth()
+  const { preferences, user } = useAuth()
   const [open, setOpen] = useState(false)
   const [selected, setSelected] = useState<SavingsGoal | undefined>()
   const [error, setError] = useState('')
@@ -33,14 +33,12 @@ export function SavingsGoalsPage() {
 
   return <div className="space-y-6">
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end"><div><p className="eyebrow">Planning</p><h2 className="page-title mt-1">Savings goals</h2><p className="mt-1 text-sm text-[var(--text-secondary)]">Track progress toward the things you’re saving for.</p></div><button type="button" onClick={() => { setSelected(undefined); setOpen(true) }} className="inline-flex h-9 items-center gap-2 self-start rounded-md bg-[var(--accent)] px-3 text-xs font-semibold text-[#081725] sm:self-auto"><Plus size={14} /> Add goal</button></div>
-    {demoMode && <p className="rounded-md border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--text-secondary)]">Demo preview · sample goals are read-only; new goals are saved in this browser.</p>}
     {notice && <p role="status" className="rounded-md border border-[var(--positive)]/25 bg-[var(--positive-subtle)] px-3 py-2.5 text-xs text-[var(--positive)]">{notice}</p>}
     {error && <p role="alert" className="rounded-md border border-[var(--negative)]/25 bg-[var(--negative-subtle)] px-3 py-2.5 text-xs text-[var(--negative)]">{error}</p>}
     {data.goals.length ? <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">{data.goals.map((goal) => {
       const progress = Math.min(100, Math.round(goal.saved / Math.max(1, goal.target) * 100))
-      const sample = demoMode && (goal.id.startsWith('goal-'))
       return <article key={goal.id} className="panel min-w-0 p-5">
-        <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-md border border-[var(--line)] bg-[var(--surface-input)] text-[var(--text-secondary)]"><Target size={16} /></span><div className="min-w-0"><h3 className="truncate text-sm font-medium text-[var(--text-primary)]">{goal.name}</h3><p className="mt-0.5 text-xs text-[var(--text-secondary)]">{progress}% complete</p></div></div><div className="flex gap-1"><button type="button" disabled={sample} onClick={() => { setSelected(goal); setOpen(true) }} aria-label={`Edit ${goal.name}`} className="grid size-8 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-hover)] disabled:opacity-30"><Edit size={14} /></button><button type="button" disabled={sample || busyId === goal.id} onClick={() => void remove(goal)} aria-label={`Delete ${goal.name}`} className="grid size-8 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--negative-subtle)] hover:text-[var(--negative)] disabled:opacity-30"><Trash size={14} /></button></div></div>
+        <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-md border border-[var(--line)] bg-[var(--surface-input)] text-[var(--text-secondary)]"><Target size={16} /></span><div className="min-w-0"><h3 className="truncate text-sm font-medium text-[var(--text-primary)]">{goal.name}</h3><p className="mt-0.5 text-xs text-[var(--text-secondary)]">{progress}% complete</p></div></div><div className="flex gap-1"><button type="button" onClick={() => { setSelected(goal); setOpen(true) }} aria-label={`Edit ${goal.name}`} className="grid size-8 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--surface-hover)]"><Edit size={14} /></button><button type="button" disabled={busyId === goal.id} onClick={() => void remove(goal)} aria-label={`Delete ${goal.name}`} className="grid size-8 place-items-center rounded-md text-[var(--text-muted)] hover:bg-[var(--negative-subtle)] hover:text-[var(--negative)] disabled:opacity-30"><Trash size={14} /></button></div></div>
         <div className="mt-5 flex items-baseline justify-between gap-2"><p className="text-lg font-semibold tabular-nums text-[var(--text-primary)]">{formatCurrency(goal.saved, preferences.currency)}<span className="ml-1 text-xs font-normal text-[var(--text-muted)]">saved</span></p><p className="text-xs tabular-nums text-[var(--text-secondary)]">of {formatCurrency(goal.target, preferences.currency)}</p></div>
         <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--surface-hover)]"><div className="h-full rounded-full bg-[var(--accent)] transition-[width]" style={{ width: `${progress}%` }} /></div>
       </article>

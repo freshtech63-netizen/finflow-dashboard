@@ -44,18 +44,18 @@ export function Topbar({ searchQuery, onSearchChange, onOpenMobileMenu }: { sear
   }, [notificationsOpen])
 
   return (
-    <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-[var(--line)] bg-[var(--page)]/95 px-3 backdrop-blur sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-[var(--line)] bg-[var(--header)]/95 px-3 backdrop-blur sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-center gap-3">
-        <button type="button" onClick={onOpenMobileMenu} className="grid size-9 place-items-center rounded-lg text-zinc-400 hover:bg-white/[.05] md:hidden" aria-label="Open navigation"><Menu size={19} /></button>
-        <div className="min-w-0"><p className="text-[11px] font-medium text-[var(--text-muted)]">Workspace <span className="px-1.5 text-[var(--line)]">/</span> {title}</p><h1 className="mt-0.5 truncate text-sm font-semibold text-[var(--text-primary)]">{title}</h1></div>
+        <button type="button" onClick={onOpenMobileMenu} className="grid size-10 place-items-center rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--text-primary)] shadow-sm transition hover:border-[var(--accent)] hover:text-[var(--accent)] md:hidden" aria-label="Open navigation"><Menu size={20} /></button>
+        <div className="min-w-0"><p className="text-[12px] font-medium text-[#9A9AA0]">Workspace <span className="px-1.5 text-[var(--line)]">/</span> {title}</p><h1 className="mt-0.5 truncate text-[18px] font-semibold tracking-[-0.02em] text-[var(--text-primary)]">{title}</h1></div>
       </div>
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         <SearchBar value={searchQuery} onChange={onSearchChange} />
-        <button type="button" onClick={() => setMobileSearchOpen(!mobileSearchOpen)} aria-label={mobileSearchOpen ? 'Close search' : 'Open search'} className="grid size-9 place-items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] md:hidden">{mobileSearchOpen ? <X size={16} /> : <Search size={16} />}</button>
-        <Link to="/help" aria-label="Help desk" className="hidden size-9 place-items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] sm:grid"><CircleHelp size={16} /></Link>
-        <Link to="/messages" aria-label="Messages" className="hidden size-9 place-items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] sm:grid"><Messages size={16} /></Link>
+        <button type="button" onClick={() => setMobileSearchOpen(!mobileSearchOpen)} aria-label={mobileSearchOpen ? 'Close search' : 'Open search'} className="grid size-9 place-items-center rounded-md text-[#E5E5E7] hover:bg-[var(--surface-hover)] md:hidden">{mobileSearchOpen ? <X size={16} /> : <Search size={16} />}</button>
+        <Link to="/help" aria-label="Help desk" className="hidden size-9 place-items-center rounded-md text-[#E5E5E7] hover:bg-[var(--surface-hover)] sm:grid"><CircleHelp size={16} /></Link>
+        <Link to="/messages" aria-label="Messages" className="hidden size-9 place-items-center rounded-md text-[#E5E5E7] hover:bg-[var(--surface-hover)] sm:grid"><Messages size={16} /></Link>
         <div className="relative" ref={notificationRef}>
-          <button type="button" onClick={() => setNotificationsOpen(!notificationsOpen)} aria-expanded={notificationsOpen} aria-label="Notifications" className="relative grid size-9 place-items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"><Bell size={16} /></button>
+          <button type="button" onClick={() => setNotificationsOpen(!notificationsOpen)} aria-expanded={notificationsOpen} aria-label="Notifications" className="relative grid size-9 place-items-center rounded-md text-[#E5E5E7] hover:bg-[var(--surface-hover)]"><Bell size={16} /></button>
           {notificationsOpen && <section aria-label="Notifications" className="absolute right-0 top-11 z-30 w-[min(300px,calc(100vw-24px))] rounded-lg border border-[var(--line)] bg-[var(--surface-raised)] p-4 shadow-xl"><h2 className="text-sm font-medium text-[var(--text-primary)]">Notifications</h2><p className="mt-2 text-xs leading-relaxed text-[var(--text-secondary)]">You’re all caught up. New account alerts will appear here.</p></section>}
         </div>
         <span className="mx-1 hidden h-7 w-px bg-[var(--line)] sm:block" />

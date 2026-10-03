@@ -2,21 +2,10 @@ import { collection, deleteDoc, doc, getDocs, query, serverTimestamp, setDoc, wh
 import { COLLECTIONS, db } from './firebase'
 import type { NewScheduledPayment, ScheduleType, ScheduledPayment } from '../types'
 
-const collectionFor = (type: ScheduleType) => type === 'recurring' ? 'recurringPayments' : COLLECTIONS.subscriptions
-const demoKey = (type: ScheduleType) => `finflow-demo-${type}`
-
-function readDemo(type: ScheduleType): ScheduledPayment[] {
-  try {
-    const records: unknown = JSON.parse(localStorage.getItem(demoKey(type)) || '[]')
-    return Array.isArray(records) ? records as ScheduledPayment[] : []
-  } catch {
-    return []
-  }
-}
+const collectionFor = (type: ScheduleType) => type === 'recurring' ? COLLECTIONS.recurringPayments : COLLECTIONS.subscriptions
 
 export async function getScheduledPayments(uid: string, type: ScheduleType): Promise<ScheduledPayment[]> {
-  if (uid === 'demo') return readDemo(type)
-  if (!db) return []
+  if (!db) throw new Error('Payment schedule storage is unavailable. Check your Firebase configuration.')
   const records = await getDocs(query(collection(db, collectionFor(type)), where('userId', '==', uid)))
   return records.docs.map((record) => ({ ...record.data(), id: record.id }) as ScheduledPayment)
 }
@@ -24,22 +13,13 @@ export async function getScheduledPayments(uid: string, type: ScheduleType): Pro
 export async function saveScheduledPayment(uid: string, type: ScheduleType, value: NewScheduledPayment, id?: string): Promise<ScheduledPayment> {
   const paymentId = id || globalThis.crypto?.randomUUID?.() || `${Date.now()}`
   const saved: ScheduledPayment = { ...value, type, id: paymentId, userId: uid }
-  if (uid === 'demo') {
-    const current = readDemo(type)
-    const next = id ? current.map((item) => item.id === id ? saved : item) : [saved, ...current]
-    localStorage.setItem(demoKey(type), JSON.stringify(next))
-    return saved
-  }
   if (!db) throw new Error('Payment schedule storage is unavailable. Check your Firebase configuration.')
   await setDoc(doc(db, collectionFor(type), paymentId), { ...saved, updatedAt: serverTimestamp(), ...(!id ? { createdAt: serverTimestamp() } : {}) }, { merge: Boolean(id) })
   return saved
 }
 
 export async function deleteScheduledPayment(uid: string, type: ScheduleType, id: string): Promise<void> {
-  if (uid === 'demo') {
-    localStorage.setItem(demoKey(type), JSON.stringify(readDemo(type).filter((item) => item.id !== id)))
-    return
-  }
+  if (!uid) throw new Error('Sign in again before deleting a scheduled payment.')
   if (!db) throw new Error('Payment schedule storage is unavailable. Check your Firebase configuration.')
   await deleteDoc(doc(db, collectionFor(type), id))
 }

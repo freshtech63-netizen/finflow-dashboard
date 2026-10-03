@@ -1,0 +1,86 @@
+@import 'tailwindcss';
+
+:root {
+  font-family: 'Inter', sans-serif;
+  color: var(--text-primary);
+  background: var(--page);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --page: #0c0d10;
+  --surface: #111317;
+  --surface-raised: #17191e;
+  --surface-input: #0e1014;
+  --surface-selected: #23262d;
+  --surface-hover: #202228;
+  --line: #292b31;
+  --text-primary: #e8e9ec;
+  --text-secondary: #9598a1;
+  --text-muted: #686c75;
+  --accent: #8093d8;
+  --accent-subtle: rgb(128 147 216 / 12%);
+  --positive: #78b59a;
+  --positive-subtle: rgb(120 181 154 / 11%);
+  --negative: #c77d7d;
+  --negative-subtle: rgb(199 125 125 / 11%);
+}
+
+* { box-sizing: border-box; }
+body { min-width: 320px; margin: 0; overflow-x: clip; background: var(--page); }
+button, input { font: inherit; }
+button { cursor: pointer; }
+::selection { color: #fff; background: #52628c; }
+
+:root[data-theme='light'] {
+  --page: #f1f2f4;
+  --surface: #fff;
+  --surface-raised: #fff;
+  --surface-input: #f6f7f8;
+  --surface-selected: #e7e9ee;
+  --surface-hover: #eceef1;
+  --line: #dfe1e5;
+  --text-primary: #202229;
+  --text-secondary: #5e626b;
+  --text-muted: #82868e;
+  --accent: #596fae;
+  --accent-subtle: rgb(89 111 174 / 10%);
+  --positive: #398361;
+  --positive-subtle: rgb(57 131 97 / 9%);
+  --negative: #aa5353;
+  --negative-subtle: rgb(170 83 83 / 9%);
+}
+
+:root[data-theme='light'] aside { background: #f8f8f9; }
+:root[data-theme='light'] header { background: rgb(248 248 249 / 94%); }
+:root[data-theme='light'] .text-zinc-100,
+:root[data-theme='light'] .text-zinc-200,
+:root[data-theme='light'] .text-zinc-300 { color: var(--text-primary) !important; }
+:root[data-theme='light'] .text-zinc-400,
+:root[data-theme='light'] .text-zinc-500 { color: var(--text-secondary) !important; }
+:root[data-theme='light'] .text-zinc-600,
+:root[data-theme='light'] .text-zinc-700 { color: var(--text-muted) !important; }
+:root[data-theme='light'] .bg-\[\#111317\],
+:root[data-theme='light'] .bg-\[\#0d0e12\],
+:root[data-theme='light'] .bg-\[\#0a0b0e\] { background-color: var(--surface) !important; }
+
+.app-grid { background: var(--page); }
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.scrollbar-hidden { scrollbar-width: none; }
+.scrollbar-hidden::-webkit-scrollbar { display: none; }
+
+.page-title { color: var(--text-primary); font-family: 'Manrope', sans-serif; font-size: 23px; font-weight: 700; line-height: 1.25; }
+.section-title { color: var(--text-primary); font-size: 13px; font-weight: 600; }
+.section-caption { margin-top: 4px; color: var(--text-muted); font-size: 10px; }
+.eyebrow { color: var(--text-muted); font-size: 10px; font-weight: 500; }
+.recharts-cartesian-axis-tick-value { fill: var(--text-muted); font-family: 'Inter', sans-serif; font-size: 10px; }
+.recharts-cartesian-grid-horizontal line { stroke: var(--line); }
+.recharts-tooltip-cursor { fill: var(--surface-hover); }
+
+@media (max-width: 639px) {
+  .page-title { font-size: 21px; }
+}

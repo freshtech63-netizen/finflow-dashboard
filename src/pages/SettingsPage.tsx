@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Check, LoaderCircle, UserRound } from 'lucide-react'
+import { Check, LoaderCircle, UserRound } from '../components/icons'
 import { useAuth } from '../context/AuthContext'
+import { firebaseErrorMessage } from '../utils/firebaseErrors'
 
-const currencies = ['USD', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY']
+const currencies = ['USD', 'NGN', 'EUR', 'GBP', 'CAD', 'AUD', 'JPY']
 
 export function SettingsPage() {
   const { user, preferences, saveProfile } = useAuth()
@@ -35,8 +36,7 @@ export function SettingsPage() {
       await saveProfile({ displayName, email, photoURL, currency, theme })
       setSuccess('Your profile and preferences have been saved.')
     } catch (caught) {
-      const code = caught && typeof caught === 'object' && 'code' in caught ? String(caught.code) : ''
-      setError(code === 'auth/requires-recent-login' ? 'For your security, sign out and back in before changing your email.' : caught instanceof Error ? caught.message : 'Your profile could not be saved.')
+      setError(firebaseErrorMessage(caught, 'Your profile could not be saved.'))
     } finally { setBusy(false) }
   }
 

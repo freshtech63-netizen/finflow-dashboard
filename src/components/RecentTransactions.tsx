@@ -1,4 +1,4 @@
-import { ArrowDownLeft, ArrowUpRight } from 'lucide-react'
+import { ArrowDownLeft, ArrowUpRight } from './icons'
 import { Link } from 'react-router-dom'
 import type { Transaction } from '../types'
 import { formatCurrency, formatTransactionDate } from '../utils/finance'

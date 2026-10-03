@@ -1,6 +1,6 @@
-# Finflow Dashboard
+# FinFlow
 
-A responsive personal finance dashboard built with React, TypeScript, Vite, Tailwind CSS, Firebase Authentication, Cloud Firestore, Recharts, and Lucide.
+A responsive dark fintech dashboard built with React, TypeScript, Vite, Tailwind CSS, Firebase Authentication, Cloud Firestore, Recharts, Font Awesome, and Inter.
 
 ## Run locally
 
@@ -9,17 +9,21 @@ npm install
 npm run dev
 ```
 
-Without Firebase credentials, use **Explore the demo dashboard** on the sign-in page. Demo data lives in `src/lib/mockData.ts` and is served by the same dashboard service abstraction used for Firestore.
+Without Firebase credentials, choose **Explore demo preview** on the sign-in page. Demo figures are identified in the interface as sample data; changes to demo transactions, wallets, goals, invoices, and scheduled payments are stored in this browser only. Demo records are not presented as data from a Firebase account.
 
 ## Firebase setup
 
 1. Create a Firebase project and enable Email/Password under Authentication.
-2. Create a Cloud Firestore database and apply `firestore.rules`.
-3. Copy `.env.example` to `.env.local` and fill in the web app configuration values.
-4. Restart the Vite development server.
+2. Create a Cloud Firestore database.
+3. Copy `.env.example` to `.env.local`, fill in the Firebase web app configuration, and restart Vite.
+4. Deploy `firestore.rules` to the project.
 
-Registration creates a profile at `users/{uid}`. Financial records belong to the signed-in user through a `userId` field. Firestore collections are created on their first write; the planned collections are `users`, `wallets`, `transactions`, `savingsGoals`, `expenses`, `invoices`, and `subscriptions`.
+Firebase Authentication persists sessions in browser local storage. Registration writes a profile to `users/{uid}`. Financial records include a `userId` field; Firestore rules enforce ownership on reads and writes.
 
-## Data model
+## Data and features
 
-The dashboard currently reads `wallets`, `transactions`, `savingsGoals`, and `expenses`; when these have no records, it shows the realistic local sample dataset. The other collections are reserved for the follow-on pages. Each financial record should include `userId` and an `amount` where appropriate. The `src/lib/dashboardService.ts` adapter is the boundary for replacing or extending the sample data.
+The dashboard reads wallets, transactions, and savings goals from Firestore and derives balances, cash flow, category totals, and recent activity from those records. A new Firebase account with no financial records sees empty states rather than another account’s demo data.
+
+Transactions can be created, edited, deleted, searched, filtered, and exported as CSV. Wallets, savings goals, invoices, recurring payments, and subscriptions support persistent create/edit/delete workflows. Scheduled payment records are reminders only; FinFlow does not initiate transfers or charges. Profile and display preferences are saved to the authenticated user profile.
+
+Firestore creates collections when the first document is written. The current application uses `users`, `wallets`, `transactions`, `savingsGoals`, `invoices`, `recurringPayments`, and `subscriptions`. `expenses` remains available for a future separate expense model; current expense totals are derived from expense-direction transaction records.

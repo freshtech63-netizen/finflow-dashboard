@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight } from '../components/icons'
 import { useAuth } from '../context/AuthContext'
+import { firebaseErrorMessage } from '../utils/firebaseErrors'
 import { AuthFrame } from './Login'
 
 export function Register() {
@@ -12,10 +13,32 @@ export function Register() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
   if (user) return <Navigate to="/" replace />
-  async function submit(event: FormEvent) {
-    event.preventDefault(); setError(''); setBusy(true)
-    try { await register(name, email, password); navigate('/', { replace: true }) } catch (caught) { setError(caught instanceof Error ? caught.message : 'Unable to create your account.') } finally { setBusy(false) }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setBusy(true)
+    try {
+      await register(name.trim(), email.trim(), password)
+      navigate('/', { replace: true })
+    } catch (caught) {
+      setError(firebaseErrorMessage(caught, 'Unable to create your account. Please try again.'))
+    } finally {
+      setBusy(false)
+    }
   }
-  return <AuthFrame title="Create your account" subtitle="Start building a healthier relationship with money."><form onSubmit={(event) => void submit(event)} className="mt-7 space-y-4"><label className="block text-[11px] font-medium text-zinc-400">Full name<input required autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Alex Morgan" className="mt-2 h-11 w-full rounded-lg border border-[#30323a] bg-[#111317] px-3.5 text-xs text-zinc-100 outline-none placeholder:text-zinc-700 focus:border-[#7190ff]" /></label><label className="block text-[11px] font-medium text-zinc-400">Email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="mt-2 h-11 w-full rounded-lg border border-[#30323a] bg-[#111317] px-3.5 text-xs text-zinc-100 outline-none placeholder:text-zinc-700 focus:border-[#7190ff]" /></label><label className="block text-[11px] font-medium text-zinc-400">Password<input required type="password" minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" className="mt-2 h-11 w-full rounded-lg border border-[#30323a] bg-[#111317] px-3.5 text-xs text-zinc-100 outline-none placeholder:text-zinc-700 focus:border-[#7190ff]" /></label>{error && <p role="alert" className="rounded-lg border border-rose-500/20 bg-rose-500/[.07] px-3 py-2 text-[10px] text-rose-300">{error}</p>}{demoMode && <p className="text-[10px] text-zinc-600">Firebase isn’t configured yet. Add project credentials to enable registration.</p>}<button disabled={busy || demoMode} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#7190ff] text-xs font-bold text-[#111627] transition hover:bg-[#8ba2ff] disabled:opacity-50">{busy ? 'Creating account…' : 'Create account'} {!busy && <ArrowRight size={15} />}</button></form><p className="mt-6 text-center text-[11px] text-zinc-500">Already have an account? <Link to="/login" className="font-semibold text-zinc-200 hover:text-[#a5b5ff]">Sign in</Link></p></AuthFrame>
+
+  return <AuthFrame title="Create your account" subtitle="Set up a secure workspace for your finances.">
+    <form onSubmit={(event) => void submit(event)} className="mt-6 space-y-4">
+      <label className="block text-xs font-medium text-[var(--text-secondary)]">Full name<input required maxLength={80} autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Your name" className="mt-1.5 h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-input)] px-3.5 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]" /></label>
+      <label className="block text-xs font-medium text-[var(--text-secondary)]">Email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="mt-1.5 h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-input)] px-3.5 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]" /></label>
+      <label className="block text-xs font-medium text-[var(--text-secondary)]">Password<input required type="password" minLength={8} autoComplete="new-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="At least 8 characters" className="mt-1.5 h-11 w-full rounded-md border border-[var(--line)] bg-[var(--surface-input)] px-3.5 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus:border-[var(--accent)]" /></label>
+      {error && <p role="alert" className="rounded-md border border-[var(--negative)]/25 bg-[var(--negative-subtle)] px-3 py-2.5 text-xs text-[var(--negative)]">{error}</p>}
+      {demoMode && <p className="text-xs text-[var(--text-muted)]">Firebase isn’t configured, so account registration is unavailable in this environment.</p>}
+      <button disabled={busy || demoMode} className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--accent)] text-sm font-semibold text-[#081725] transition hover:brightness-110 disabled:opacity-50">{busy ? 'Creating account…' : 'Create account'} {!busy && <ArrowRight size={14} />}</button>
+    </form>
+    <p className="mt-6 text-center text-xs text-[var(--text-secondary)]">Already have an account? <Link to="/login" className="font-semibold text-[var(--text-primary)] hover:text-[var(--accent)]">Sign in</Link></p>
+  </AuthFrame>
 }

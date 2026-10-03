@@ -1,4 +1,4 @@
-import { ArrowUpRight, Target } from 'lucide-react'
+import { ArrowUpRight, Target } from './icons'
 import { Link } from 'react-router-dom'
 import type { SavingsGoal } from '../types'
 import { formatCurrency } from '../utils/finance'

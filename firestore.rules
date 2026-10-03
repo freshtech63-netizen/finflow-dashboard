@@ -18,8 +18,9 @@ service cloud.firestore {
     }
 
     match /{collection}/{documentId} {
-      allow read, update, delete: if collection in ['wallets', 'transactions', 'savingsGoals', 'expenses', 'invoices', 'subscriptions'] && ownedByUser();
-      allow create: if collection in ['wallets', 'transactions', 'savingsGoals', 'expenses', 'invoices', 'subscriptions'] && newRecordBelongsToUser();
+      allow read, delete: if collection in ['wallets', 'transactions', 'savingsGoals', 'expenses', 'invoices', 'subscriptions', 'recurringPayments', 'messages', 'notifications'] && ownedByUser();
+      allow create: if collection in ['wallets', 'transactions', 'savingsGoals', 'expenses', 'invoices', 'subscriptions', 'recurringPayments', 'messages', 'notifications'] && newRecordBelongsToUser();
+      allow update: if collection in ['wallets', 'transactions', 'savingsGoals', 'expenses', 'invoices', 'subscriptions', 'recurringPayments', 'messages', 'notifications'] && ownedByUser() && newRecordBelongsToUser();
     }
   }
 }

@@ -5,26 +5,49 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function ownedByUser() {
-      return signedIn() && resource.data.userId == request.auth.uid;
+    function isUser(userId) {
+      return signedIn()
+        && request.auth.uid == userId;
     }
 
-    function newRecordBelongsToUser() {
-      return signedIn() && request.resource.data.userId == request.auth.uid;
+    function ownsExistingDocument() {
+      return signedIn()
+        && resource.data.userId == request.auth.uid;
+    }
+
+    function ownsNewDocument() {
+      return signedIn()
+        && request.resource.data.userId == request.auth.uid;
     }
 
     match /users/{userId} {
-      allow read: if signedIn() && request.auth.uid == userId;
-      allow create, update: if signedIn()
-        && request.auth.uid == userId
+      allow read: if isUser(userId);
+
+      allow create: if isUser(userId)
         && request.resource.data.uid == userId;
+
+      allow update: if isUser(userId)
+        && request.resource.data.uid == userId;
+
       allow delete: if false;
     }
 
-    match /{collection}/{documentId} {
-      allow read, delete: if collection in ['wallets', 'transactions', 'savingsGoals', 'expenses', 'invoices', 'subscriptions', 'recurringPayments', 'messages', 'notifications'] && ownedByUser();
-      allow create: if collection in ['wallets', 'transactions', 'savingsGoals', 'expenses', 'invoices', 'subscriptions', 'recurringPayments', 'messages', 'notifications'] && newRecordBelongsToUser();
-      allow update: if collection in ['wallets', 'transactions', 'savingsGoals', 'expenses', 'invoices', 'subscriptions', 'recurringPayments', 'messages', 'notifications'] && ownedByUser() && newRecordBelongsToUser();
+    match /wallets/{walletId} {
+      allow read, delete: if ownsExistingDocument();
+      allow create: if ownsNewDocument();
+      allow update: if ownsExistingDocument()
+        && ownsNewDocument();
+    }
+
+    match /transactions/{transactionId} {
+      allow read, delete: if ownsExistingDocument();
+      allow create: if ownsNewDocument();
+      allow update: if ownsExistingDocument()
+        && ownsNewDocument();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }

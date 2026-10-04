@@ -1,9 +1,18 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useAuth } from './AuthContext'
-import { deleteSavingsGoal as deleteSavingsGoalRecord, deleteTransaction as deleteTransactionRecord, deleteWallet as deleteWalletRecord, getDashboardData, saveSavingsGoal as saveSavingsGoalRecord, saveTransaction, saveWallet as saveWalletRecord } from '../lib/dashboardService'
+import { getDashboardData } from '../lib/dashboardService'
+import {
+  createTransaction as createTransactionRecord,
+  createWallet as createWalletRecord,
+  deleteTransaction as deleteTransactionRecord,
+  deleteWallet as deleteWalletRecord,
+  updateTransaction as updateTransactionRecord,
+  updateWallet as updateWalletRecord,
+} from '../services/firestore'
 import { emptyDashboard } from '../lib/dashboardDefaults'
 import type { DashboardData, NewSavingsGoal, NewTransaction, NewWallet, SavingsGoal, Transaction, Wallet } from '../types'
 import { expenseCategoryColor, normalizeExpenseCategory } from '../utils/finance'
+import { firebaseErrorMessage } from '../utils/firebaseErrors'
 
 type DashboardDataValue = {
   data: DashboardData
@@ -12,7 +21,7 @@ type DashboardDataValue = {
   createTransaction: (input: NewTransaction) => Promise<Transaction>
   updateTransaction: (input: NewTransaction, transactionId: string) => Promise<Transaction>
   deleteTransaction: (transactionId: string) => Promise<void>
-  saveWallet: (input: NewWallet, walletId?: string, requestId?: string) => Promise<Wallet>
+  saveWallet: (input: NewWallet, walletId?: string) => Promise<Wallet>
   deleteWallet: (walletId: string) => Promise<void>
   saveSavingsGoal: (input: NewSavingsGoal, goalId?: string) => Promise<SavingsGoal>
   deleteSavingsGoal: (goalId: string) => Promise<void>
@@ -60,19 +69,19 @@ function applyTransaction(current: DashboardData, transaction: Transaction): Das
 }
 
 export function DashboardDataProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth()
+  const { user, authStatus } = useAuth()
   const [data, setData] = useState<DashboardData>(emptyDashboard)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const refresh = async () => {
-    if (!user) return
+    if (!user || authStatus !== 'authenticated') return
     setLoading(true)
     try {
-      setData(await getDashboardData(user.uid))
+      setData(await getDashboardData())
       setError('')
-    } catch {
-      setError('Your latest data could not be loaded. Check your connection and retry.')
+    } catch (caught) {
+      setError(firebaseErrorMessage(caught, 'Your latest data could not be loaded.'))
     } finally {
       setLoading(false)
     }
@@ -80,7 +89,11 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true
-    if (!user) {
+    if (authStatus === 'loading') {
+      setLoading(true)
+      return
+    }
+    if (!user || authStatus !== 'authenticated') {
       setData(emptyDashboard)
       setError('')
       setLoading(false)
@@ -89,15 +102,15 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
     setData(emptyDashboard)
     setError('')
     setLoading(true)
-    getDashboardData(user.uid).then((result) => {
+    getDashboardData().then((result) => {
       if (active) { setData(result); setError('') }
-    }).catch(() => {
-      if (active) setError('Your latest data could not be loaded. Check your connection and retry.')
+    }).catch((caught: unknown) => {
+      if (active) setError(firebaseErrorMessage(caught, 'Your latest data could not be loaded.'))
     }).finally(() => {
       if (active) setLoading(false)
     })
     return () => { active = false }
-  }, [user])
+  }, [user, authStatus])
 
   const value = useMemo<DashboardDataValue>(() => ({
     data,
@@ -106,24 +119,24 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
     refresh,
     createTransaction: async (input) => {
       if (!user) throw new Error('Sign in again before adding a transaction.')
-      const transaction = await saveTransaction(user.uid, input)
+      const transaction = await createTransactionRecord(input)
       setData((current) => applyTransaction(current, transaction))
       return transaction
     },
     updateTransaction: async (input, transactionId) => {
       if (!user) throw new Error('Sign in again before editing a transaction.')
-      const transaction = await saveTransaction(user.uid, input, transactionId)
-      setData(await getDashboardData(user.uid))
+      const transaction = await updateTransactionRecord(transactionId, input)
+      setData(await getDashboardData())
       return transaction
     },
     deleteTransaction: async (transactionId) => {
       if (!user) throw new Error('Sign in again before deleting a transaction.')
-      await deleteTransactionRecord(user.uid, transactionId)
-      setData(await getDashboardData(user.uid))
+      await deleteTransactionRecord(transactionId)
+      setData(await getDashboardData())
     },
-    saveWallet: async (input, walletId, requestId) => {
+    saveWallet: async (input, walletId) => {
       if (!user) throw new Error('Sign in again before saving a wallet.')
-      const wallet = await saveWalletRecord(user.uid, input, walletId, requestId)
+      const wallet = walletId ? await updateWalletRecord(walletId, input) : await createWalletRecord(input)
       setData((current) => {
         const existing = current.wallets.find((item) => item.id === wallet.id)
         return {
@@ -136,27 +149,22 @@ export function DashboardDataProvider({ children }: { children: ReactNode }) {
     },
     deleteWallet: async (walletId) => {
       if (!user) throw new Error('Sign in again before deleting a wallet.')
-      await deleteWalletRecord(user.uid, walletId)
+      await deleteWalletRecord(walletId)
       setData((current) => {
         const wallet = current.wallets.find((item) => item.id === walletId)
         return { ...current, balance: current.balance - (wallet?.balance || 0), wallets: current.wallets.filter((item) => item.id !== walletId) }
       })
     },
     saveSavingsGoal: async (input, goalId) => {
-      if (!user) throw new Error('Sign in again before saving a savings goal.')
-      const goal = await saveSavingsGoalRecord(user.uid, input, goalId)
-      setData((current) => {
-        const existing = current.goals.find((item) => item.id === goal.id)
-        return { ...current, goals: existing ? current.goals.map((item) => item.id === goal.id ? goal : item) : [...current.goals, goal] }
-      })
-      return goal
+      void input
+      void goalId
+      throw new Error('Savings goals are not part of the current Firestore rollout. Wallet and transaction storage are enabled first.')
     },
     deleteSavingsGoal: async (goalId) => {
-      if (!user) throw new Error('Sign in again before deleting a savings goal.')
-      await deleteSavingsGoalRecord(user.uid, goalId)
-      setData((current) => ({ ...current, goals: current.goals.filter((item) => item.id !== goalId) }))
+      void goalId
+      throw new Error('Savings goals are not part of the current Firestore rollout. Wallet and transaction storage are enabled first.')
     },
-  }), [data, loading, error, user])
+  }), [data, loading, error, user, authStatus])
 
   return <DashboardDataContext.Provider value={value}>{children}</DashboardDataContext.Provider>
 }

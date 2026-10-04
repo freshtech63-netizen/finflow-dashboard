@@ -7,14 +7,10 @@ type Props = {
   open: boolean
   wallet?: Wallet
   onClose: () => void
-  onSave: (value: NewWallet, walletId?: string, requestId?: string) => Promise<void>
+  onSave: (value: NewWallet, walletId?: string) => Promise<void>
 }
 
 const inputClass = 'mt-1.5 h-10 w-full rounded-md border border-[var(--line)] bg-[var(--surface-input)] px-3 text-sm text-[var(--text-primary)] outline-none focus:border-[var(--accent)]'
-
-function createRequestId() {
-  return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
 
 export function WalletEditorModal({ open, wallet, onClose, onSave }: Props) {
   const [name, setName] = useState('')
@@ -22,7 +18,6 @@ export function WalletEditorModal({ open, wallet, onClose, onSave }: Props) {
   const [balance, setBalance] = useState('')
   const [brand, setBrand] = useState('')
   const [status, setStatus] = useState<'active' | 'inactive'>('active')
-  const [requestId, setRequestId] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -33,7 +28,6 @@ export function WalletEditorModal({ open, wallet, onClose, onSave }: Props) {
     setBalance(String(wallet?.balance ?? 0))
     setBrand(wallet?.brand || '')
     setStatus(wallet?.status || 'active')
-    setRequestId(wallet ? '' : createRequestId())
     setError('')
   }, [open, wallet])
 
@@ -68,9 +62,7 @@ export function WalletEditorModal({ open, wallet, onClose, onSave }: Props) {
         brand: brand.trim() || 'Account',
         status,
       }
-      const operationId = requestId || createRequestId()
-      setRequestId(operationId)
-      await onSave(value, wallet?.id, operationId)
+      await onSave(value, wallet?.id)
       onClose()
     } catch (caught) {
       setError(getFirestoreErrorMessage(caught))

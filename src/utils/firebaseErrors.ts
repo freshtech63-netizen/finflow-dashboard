@@ -16,7 +16,7 @@ const messages: Record<string, string> = {
   'permission-denied': 'Firestore permission denied. Check authentication and Firestore Security Rules.',
   'unauthenticated': 'You are not authenticated. Please sign in again.',
   'failed-precondition': 'Firestore configuration/database error.',
-  unavailable: 'Firebase is temporarily unavailable. Check your connection.',
+  unavailable: 'Firestore is unavailable. Check the Firebase connection.',
   'invalid-argument': 'Invalid data was sent to Firestore.',
 }
 

@@ -1,18 +1,11 @@
-import { getApp, getApps, initializeApp } from 'firebase/app'
-import { browserLocalPersistence, getAuth, setPersistence } from 'firebase/auth'
-import { initializeFirestore } from 'firebase/firestore'
+import { getApps, initializeApp } from 'firebase/app'
+import { browserLocalPersistence, getAuth, GoogleAuthProvider, onAuthStateChanged, setPersistence, type User } from 'firebase/auth'
+import { getFirestore } from 'firebase/firestore'
 
 export const COLLECTIONS = {
   users: 'users',
   wallets: 'wallets',
   transactions: 'transactions',
-  savingsGoals: 'savingsGoals',
-  expenses: 'expenses',
-  invoices: 'invoices',
-  recurringPayments: 'recurringPayments',
-  subscriptions: 'subscriptions',
-  messages: 'messages',
-  notifications: 'notifications',
 } as const
 
 const config = {
@@ -25,31 +18,35 @@ const config = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 }
 
-export const firebaseConfigured = Boolean(
-  config.apiKey &&
-  config.authDomain &&
-  config.projectId &&
-  config.storageBucket &&
-  config.messagingSenderId &&
-  config.appId,
-)
-export const firebaseApp = firebaseConfigured
-  ? (getApps().length ? getApp() : initializeApp(config))
-  : null
-export const auth = firebaseApp ? getAuth(firebaseApp) : null
-export const db = firebaseApp
-  ? initializeFirestore(firebaseApp, { experimentalForceLongPolling: true })
-  : null
+const requiredConfig = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'] as const
+const missingConfig = requiredConfig.filter((key) => !config[key])
+if (missingConfig.length) {
+  throw new Error(`Firebase configuration is missing required Vite settings: ${missingConfig.map((key) => `VITE_FIREBASE_${key.replace(/[A-Z]/g, (letter) => `_${letter}`).toUpperCase()}`).join(', ')}`)
+}
+if (config.projectId !== 'finflow-37b6e') {
+  throw new Error('Firebase is configured for an unexpected project. FinFlow requires finflow-37b6e.')
+}
 
-export const authPersistenceReady = auth
-  ? setPersistence(auth, browserLocalPersistence)
-  : Promise.resolve()
+export const app = getApps().find((firebaseApp) => firebaseApp.name === '[DEFAULT]') || initializeApp(config)
+export const auth = getAuth(app)
+export const db = getFirestore(app)
+export const googleProvider = new GoogleAuthProvider()
+export const firebaseConfigured = true
+export const authPersistenceReady = setPersistence(auth, browserLocalPersistence)
 
-export function requireCurrentUser(expectedUid?: string) {
-  const currentUser = auth?.currentUser
-  if (!currentUser) throw new Error('You are not authenticated. Please sign in again.')
-  if (expectedUid && currentUser.uid !== expectedUid) {
-    throw new Error('Your authentication changed. Please sign in again.')
-  }
-  return currentUser
+export async function getAuthenticatedUser(): Promise<User> {
+  await authPersistenceReady
+  await new Promise<void>((resolve, reject) => {
+    let unsubscribe = () => {}
+    unsubscribe = onAuthStateChanged(auth, () => {
+      unsubscribe()
+      resolve()
+    }, (error) => {
+      unsubscribe()
+      reject(error)
+    })
+  })
+  const user = auth.currentUser
+  if (!user) throw Object.assign(new Error('User is not authenticated.'), { code: 'unauthenticated' })
+  return user
 }

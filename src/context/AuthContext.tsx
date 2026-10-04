@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   createUserWithEmailAndPassword,
-  GoogleAuthProvider,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
@@ -12,15 +11,17 @@ import {
   type User,
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
-import { auth, authPersistenceReady, COLLECTIONS, db, firebaseConfigured, requireCurrentUser } from '../lib/firebase'
+import { auth, authPersistenceReady, COLLECTIONS, db, googleProvider } from '../lib/firebase'
 import { firebaseErrorMessage } from '../utils/firebaseErrors'
-import { withFirestoreWrite } from '../utils/firestoreWrites'
+import { logFirestoreWriteError } from '../utils/firestoreWrites'
 
 export type ProfilePreferences = { currency: string; theme: 'dark' | 'light' }
 export type EditableProfile = { displayName: string; email: string; photoURL: string; currency: string; theme: 'dark' | 'light' }
+export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
 type AppUser = Pick<User, 'uid' | 'email' | 'displayName' | 'photoURL'>
 type AuthContextValue = {
   user: AppUser | null
+  authStatus: AuthStatus
   loading: boolean
   authError: string
   firebaseConfigured: boolean
@@ -36,54 +37,82 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 const defaultPreferences: ProfilePreferences = { currency: 'USD', theme: 'dark' }
 
+async function ensureUserProfile(user: User) {
+  const reference = doc(db, COLLECTIONS.users, user.uid)
+  const existing = await getDoc(reference)
+  try {
+    await setDoc(reference, {
+      uid: user.uid,
+      email: user.email || '',
+      displayName: user.displayName || '',
+      photoURL: user.photoURL || '',
+      ...(existing.exists() ? {} : { createdAt: serverTimestamp() }),
+      updatedAt: serverTimestamp(),
+    }, { merge: true })
+  } catch (error) {
+    logFirestoreWriteError(error)
+    throw error
+  }
+  return existing.data()
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [authStatus, setAuthStatus] = useState<AuthStatus>('loading')
   const [authError, setAuthError] = useState('')
   const [preferences, setPreferences] = useState<ProfilePreferences>(defaultPreferences)
 
   useEffect(() => {
-    const currentAuth = auth
-    if (!currentAuth) {
-      setLoading(false)
-      return
-    }
     let active = true
     let unsubscribe: (() => void) | undefined
     let profileReadId = 0
+
     void authPersistenceReady.then(() => {
       if (!active) return
-      unsubscribe = onAuthStateChanged(currentAuth, (firebaseUser) => {
-        const currentReadId = ++profileReadId
-        setUser(firebaseUser)
+      unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        const readId = ++profileReadId
+        setAuthStatus('loading')
         setAuthError('')
+        if (!firebaseUser) {
+          setUser(null)
+          setPreferences(defaultPreferences)
+          document.documentElement.dataset.theme = 'dark'
+          setAuthStatus('unauthenticated')
+          return
+        }
+
+        setUser(firebaseUser)
         void (async () => {
           try {
-            const profile = firebaseUser && db ? await getDoc(doc(db, COLLECTIONS.users, firebaseUser.uid)) : null
-            const saved = profile?.data()
-            const nextPreferences: ProfilePreferences = { currency: saved?.currency || 'USD', theme: saved?.theme === 'light' ? 'light' : 'dark' }
-            if (!active || currentReadId !== profileReadId) return
+            const saved = await ensureUserProfile(firebaseUser)
+            const nextPreferences: ProfilePreferences = {
+              currency: typeof saved?.currency === 'string' ? saved.currency : 'USD',
+              theme: saved?.theme === 'light' ? 'light' : 'dark',
+            }
+            if (!active || readId !== profileReadId) return
             setPreferences(nextPreferences)
             document.documentElement.dataset.theme = nextPreferences.theme
           } catch (error) {
-            if (active && currentReadId === profileReadId) {
+            if (active && readId === profileReadId) {
               setAuthError(firebaseErrorMessage(error, 'Your account profile could not be loaded.'))
             }
           } finally {
-            if (active && currentReadId === profileReadId) setLoading(false)
+            if (active && readId === profileReadId) setAuthStatus('authenticated')
           }
         })()
       }, (error) => {
         if (!active) return
         setUser(null)
-        setAuthError(firebaseErrorMessage(error, 'Authentication could not be restored. Please try signing in again.'))
-        setLoading(false)
+        setAuthError(firebaseErrorMessage(error, 'Authentication could not be restored. Please sign in again.'))
+        setAuthStatus('unauthenticated')
       })
     }).catch((error: unknown) => {
       if (!active) return
+      setUser(null)
       setAuthError(firebaseErrorMessage(error, 'Authentication could not be initialized. Please reload the page.'))
-      setLoading(false)
+      setAuthStatus('unauthenticated')
     })
+
     return () => {
       active = false
       unsubscribe?.()
@@ -92,88 +121,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthContextValue>(() => ({
     user,
-    loading,
+    authStatus,
+    loading: authStatus === 'loading',
     authError,
-    firebaseConfigured,
+    firebaseConfigured: true,
     preferences,
     login: async (email, password) => {
-      if (!auth) throw new Error('Firebase is not configured. Add your Firebase environment variables to sign in.')
       await authPersistenceReady
       await signInWithEmailAndPassword(auth, email, password)
     },
     register: async (name, email, password) => {
-      if (!auth) throw new Error('Firebase is not configured. Add your Firebase environment variables to create an account.')
-      if (!db) throw new Error('User profile storage is unavailable. Check your Firebase configuration.')
-      const firestore = db
       await authPersistenceReady
       const credential = await createUserWithEmailAndPassword(auth, email, password)
-      try {
-        await updateProfile(credential.user, { displayName: name })
-        const currentUser = requireCurrentUser(credential.user.uid)
-        await withFirestoreWrite(() => setDoc(doc(firestore, COLLECTIONS.users, currentUser.uid), {
-          uid: currentUser.uid,
-          displayName: currentUser.displayName || name,
-          email: currentUser.email || email,
-          photoURL: currentUser.photoURL || '',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        }, { merge: true }))
-      } catch (error) {
-        setAuthError(firebaseErrorMessage(error, 'Your account was created, but its Firestore profile could not be saved.'))
-        throw error
-      }
+      await updateProfile(credential.user, { displayName: name })
+      await ensureUserProfile(credential.user)
     },
     loginWithGoogle: async () => {
-      if (!auth) throw new Error('Firebase is not configured. Add your Firebase environment variables to sign in.')
-      if (!db) throw new Error('User profile storage is unavailable. Check your Firebase configuration.')
-      const firestore = db
       await authPersistenceReady
-      const credential = await signInWithPopup(auth, new GoogleAuthProvider())
-      try {
-        const currentUser = requireCurrentUser(credential.user.uid)
-        const profileRef = doc(firestore, COLLECTIONS.users, currentUser.uid)
-        const existingProfile = await getDoc(profileRef)
-        const existing = existingProfile.data()
-        await withFirestoreWrite(() => setDoc(profileRef, {
-          uid: currentUser.uid,
-          email: currentUser.email || existing?.email || '',
-          displayName: currentUser.displayName || existing?.displayName || '',
-          photoURL: currentUser.photoURL || existing?.photoURL || '',
-          ...(existingProfile.exists() ? {} : { createdAt: serverTimestamp() }),
-          updatedAt: serverTimestamp(),
-        }, { merge: true }))
-      } catch (error) {
-        setAuthError(firebaseErrorMessage(error, 'Your Google account signed in, but its Firestore profile could not be saved.'))
-        throw error
-      }
+      const credential = await signInWithPopup(auth, googleProvider)
+      await ensureUserProfile(credential.user)
     },
     resetPassword: async (email) => {
-      if (!auth) throw new Error('Password reset requires a configured Firebase project.')
       await authPersistenceReady
       await sendPasswordResetEmail(auth, email)
     },
     logout: async () => {
-      if (auth) {
-        await authPersistenceReady
-        await signOut(auth)
-      }
-      setUser(null)
+      await authPersistenceReady
+      await signOut(auth)
       setPreferences(defaultPreferences)
       document.documentElement.dataset.theme = 'dark'
     },
     saveProfile: async (profile) => {
-      const currentUser = requireCurrentUser()
-      if (!db) throw new Error('User profile storage is unavailable. Check your Firebase configuration.')
-      const firestore = db
+      const currentUser = auth.currentUser
+      if (!currentUser) throw new Error('Sign in again before updating your profile.')
       if (profile.email.trim() !== currentUser.email) await updateEmail(currentUser, profile.email.trim())
-      await updateProfile(currentUser, { displayName: profile.displayName.trim(), photoURL: profile.photoURL.trim() || null })
-      await withFirestoreWrite(() => setDoc(doc(firestore, COLLECTIONS.users, currentUser.uid), { uid: currentUser.uid, email: profile.email.trim(), displayName: profile.displayName.trim(), photoURL: profile.photoURL.trim() || null, currency: profile.currency, theme: profile.theme, updatedAt: serverTimestamp() }, { merge: true }))
+      await updateProfile(currentUser, {
+        displayName: profile.displayName.trim(),
+        photoURL: profile.photoURL.trim() || null,
+      })
+      try {
+        await setDoc(doc(db, COLLECTIONS.users, currentUser.uid), {
+          uid: currentUser.uid,
+          email: profile.email.trim(),
+          displayName: profile.displayName.trim(),
+          photoURL: profile.photoURL.trim() || '',
+          currency: profile.currency,
+          theme: profile.theme,
+          updatedAt: serverTimestamp(),
+        }, { merge: true })
+      } catch (error) {
+        logFirestoreWriteError(error)
+        throw error
+      }
       setUser(currentUser)
       const nextPreferences = { currency: profile.currency, theme: profile.theme }
       setPreferences(nextPreferences)
       document.documentElement.dataset.theme = nextPreferences.theme
     },
-  }), [user, loading, authError, preferences])
+  }), [user, authStatus, authError, preferences])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

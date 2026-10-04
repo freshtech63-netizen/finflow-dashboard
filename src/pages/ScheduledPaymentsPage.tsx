@@ -30,8 +30,8 @@ export function ScheduledPaymentsPage({ type }: { type: ScheduleType }) {
     setLoading(true)
     getScheduledPayments(user.uid, type).then((result) => {
       if (active) { setRecords(result); setError('') }
-    }).catch(() => {
-      if (active) setError(`${title} could not be loaded. Check your connection and retry.`)
+    }).catch((caught: unknown) => {
+      if (active) setError(firebaseErrorMessage(caught, `${title} could not be loaded.`))
     }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [user, type, title])

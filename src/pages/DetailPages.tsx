@@ -223,7 +223,7 @@ export function WalletsPage() {
           ))}
         </div>
       </section>}
-      <WalletEditorModal open={editorOpen} wallet={selected} onClose={() => setEditorOpen(false)} onSave={async (wallet, id, requestId) => { await saveWallet(wallet, id, requestId); setNotice(`${wallet.name} ${id ? 'updated' : 'added'}.`); setError('') }} />
+      <WalletEditorModal open={editorOpen} wallet={selected} onClose={() => setEditorOpen(false)} onSave={async (wallet, id) => { await saveWallet(wallet, id); setNotice(`${wallet.name} ${id ? 'updated' : 'added'}.`); setError('') }} />
     </div>
   )
 }
@@ -245,8 +245,8 @@ export function InvoicesPage() {
     setLoading(true)
     getInvoices(user.uid).then((result) => {
       if (active) { setInvoices(result); setError('') }
-    }).catch(() => {
-      if (active) setError('Invoices could not be loaded. Check your connection and retry.')
+    }).catch((caught: unknown) => {
+      if (active) setError(firebaseErrorMessage(caught, 'Invoices could not be loaded.'))
     }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [user])

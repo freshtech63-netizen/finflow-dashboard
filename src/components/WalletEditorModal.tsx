@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { WalletCards, X } from './icons'
 import type { NewWallet, Wallet } from '../types'
-import { firebaseErrorMessage } from '../utils/firebaseErrors'
+import { getFirestoreErrorMessage } from '../utils/firebaseErrors'
 
 type Props = {
   open: boolean
@@ -73,7 +73,7 @@ export function WalletEditorModal({ open, wallet, onClose, onSave }: Props) {
       await onSave(value, wallet?.id, operationId)
       onClose()
     } catch (caught) {
-      setError(firebaseErrorMessage(caught, 'The account could not be saved.'))
+      setError(getFirestoreErrorMessage(caught))
     } finally {
       setBusy(false)
     }
@@ -86,7 +86,7 @@ export function WalletEditorModal({ open, wallet, onClose, onSave }: Props) {
         <label className="block text-xs font-medium text-[var(--text-secondary)]">Account name<input required maxLength={60} autoFocus value={name} onChange={(event) => setName(event.target.value)} className={inputClass} placeholder="Everyday account" /></label>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-[var(--text-secondary)]">Current balance<input required type="number" min="0" step="0.01" inputMode="decimal" value={balance} onChange={(event) => setBalance(event.target.value)} className={inputClass} placeholder="0.00" /></label><label className="text-xs font-medium text-[var(--text-secondary)]">Last four digits<input inputMode="numeric" maxLength={4} value={lastFour} onChange={(event) => setLastFour(event.target.value.replace(/\D/g, '').slice(0, 4))} className={inputClass} placeholder="Optional" /></label></div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-[var(--text-secondary)]">Provider or brand<input maxLength={40} value={brand} onChange={(event) => setBrand(event.target.value)} className={inputClass} placeholder="Bank or card network" /></label><label className="text-xs font-medium text-[var(--text-secondary)]">Status<select value={status} onChange={(event) => setStatus(event.target.value as 'active' | 'inactive')} className={inputClass}><option value="active">Active</option><option value="inactive">Inactive</option></select></label></div>
-        {error && <p role="alert" className="rounded-md border border-[var(--negative)]/25 bg-[var(--negative-subtle)] px-3 py-2.5 text-xs text-[var(--negative)]">{error}</p>}
+        {error && <p role="alert" className="break-words rounded-md border border-[var(--negative)]/25 bg-[var(--negative-subtle)] px-3 py-2.5 text-xs leading-relaxed text-[var(--negative)]">{error}</p>}
         <footer className="flex justify-end gap-2 border-t border-[var(--line)] pt-4"><button type="button" disabled={busy} onClick={onClose} className="h-9 rounded-md border border-[var(--line)] px-4 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">Cancel</button><button type="submit" disabled={busy} className="h-9 rounded-md bg-[var(--accent)] px-4 text-xs font-semibold text-[#081725] disabled:opacity-60">{busy ? 'Saving…' : wallet ? 'Save changes' : 'Add account'}</button></footer>
       </form>
     </section>

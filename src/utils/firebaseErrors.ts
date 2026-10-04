@@ -20,6 +20,29 @@ const messages: Record<string, string> = {
   'invalid-argument': 'Invalid data was sent to Firestore.',
 }
 
+const firestoreMessages: Record<string, string> = {
+  'permission-denied': 'Firestore permission denied. Check your Firebase authentication and Firestore Security Rules.',
+  unauthenticated: 'You are not authenticated. Please sign in again.',
+  'failed-precondition': 'Firestore failed precondition. Check that Cloud Firestore is enabled and correctly configured.',
+  unavailable: 'Firestore is unavailable. Check the Firebase connection.',
+  'invalid-argument': 'Invalid data was sent to Firestore.',
+  'not-found': 'The requested Firestore document was not found.',
+  'already-exists': 'This Firestore document already exists.',
+}
+
+export function getFirestoreErrorMessage(error: unknown): string {
+  const details = error && typeof error === 'object' ? error : null
+  const rawCode = details && 'code' in details && typeof details.code === 'string' ? details.code : ''
+  const code = rawCode.startsWith('firestore/') ? rawCode.slice('firestore/'.length) : rawCode
+  const rawMessage = details && 'message' in details && typeof details.message === 'string'
+    ? details.message
+    : error instanceof Error ? error.message : 'Unknown error'
+  const summary = firestoreMessages[code]
+
+  if (code && summary) return `Firestore error (${code}): ${summary}${rawMessage ? ` Firebase message: ${rawMessage}` : ''}`
+  return `Firestore error${code ? ` (${code})` : ''}: ${rawMessage}`
+}
+
 export function firebaseErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
     const code = error.code.startsWith('firestore/') ? error.code.slice('firestore/'.length) : error.code

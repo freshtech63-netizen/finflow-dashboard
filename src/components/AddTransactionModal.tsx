@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Check, X } from './icons'
 import type { NewTransaction, Transaction } from '../types'
 import { useDashboardData } from '../context/DashboardDataContext'
-import { firebaseErrorMessage } from '../utils/firebaseErrors'
+import { getFirestoreErrorMessage } from '../utils/firebaseErrors'
 
 const categories: Record<NewTransaction['direction'], string[]> = {
   expense: ['Food', 'Transport', 'Bills', 'Shopping', 'Entertainment', 'Other'],
@@ -57,7 +57,7 @@ export function AddTransactionModal({ open, onClose, transaction }: { open: bool
       else await createTransaction(value)
       setSaved(true)
     } catch (caught) {
-      setError(firebaseErrorMessage(caught, 'The transaction could not be saved. Please try again.'))
+      setError(getFirestoreErrorMessage(caught))
     } finally {
       setBusy(false)
     }
@@ -72,7 +72,7 @@ export function AddTransactionModal({ open, onClose, transaction }: { open: bool
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="text-[10px] font-medium text-[var(--text-secondary)]">Category<select required value={category} onChange={(event) => setCategory(event.target.value)} className={inputClass}>{[...new Set([...categories[direction], ...(category && !categories[direction].includes(category) ? [category] : [])])].map((item) => <option key={item}>{item}</option>)}</select></label><label className="text-[10px] font-medium text-[var(--text-secondary)]">Date<input required type="date" value={date} onChange={(event) => setDate(event.target.value)} className={inputClass} /></label></div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="text-[10px] font-medium text-[var(--text-secondary)]">Payment method<select required value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className={inputClass}><option>Debit card</option><option>Credit card</option><option>Bank transfer</option><option>Cash</option><option>Digital wallet</option></select></label><label className="text-[10px] font-medium text-[var(--text-secondary)]">Wallet or account<select required value={walletId} onChange={(event) => setWalletId(event.target.value)} className={inputClass}>{data.wallets.map((wallet) => <option key={wallet.id} value={wallet.id}>{wallet.name}</option>)}</select></label></div>
         <label className="block text-[10px] font-medium text-[var(--text-secondary)]">Notes<textarea maxLength={500} rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Optional details" className="mt-1.5 w-full resize-y rounded-md border border-[var(--line)] bg-[var(--surface-input)] px-3 py-2.5 text-xs text-[var(--text-primary)] outline-none focus:border-[var(--accent)]" /></label>
-        {error && <p role="alert" className="rounded-md border border-[#a35c5c]/40 bg-[#8f3939]/10 px-3 py-2 text-[10px] text-[#df9999]">{error}</p>}
+        {error && <p role="alert" className="break-words rounded-md border border-[var(--negative)]/25 bg-[var(--negative-subtle)] px-3 py-2.5 text-xs leading-relaxed text-[var(--negative)]">{error}</p>}
         <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4"><button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-md border border-[var(--line)] px-4 text-xs font-medium text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]">Cancel</button><button type="submit" disabled={busy} className="h-10 rounded-md bg-[var(--accent)] px-4 text-xs font-semibold text-[#081725] disabled:opacity-60">{busy ? 'Saving…' : transaction ? 'Save changes' : 'Save transaction'}</button></div>
       </form>}
     </section>

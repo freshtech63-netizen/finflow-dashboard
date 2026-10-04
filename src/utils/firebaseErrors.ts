@@ -13,14 +13,22 @@ const messages: Record<string, string> = {
   'auth/popup-closed-by-user': 'Google sign-in was cancelled.',
   'auth/popup-blocked': 'Your browser blocked the sign-in window. Allow popups and try again.',
   'auth/cancelled-popup-request': 'Another sign-in window is already open. Finish it or close it before trying again.',
-  'permission-denied': 'Firestore rejected this change. Confirm the published rules allow the signed-in user to create records in the wallets collection, then reload the app.',
-  'firestore/permission-denied': 'Firestore rejected this change. Confirm the published rules allow the signed-in user to create records in the wallets collection, then reload the app.',
-  unavailable: 'Firebase is temporarily unavailable. Check your connection and try again.',
+  'permission-denied': 'Firestore permission denied. Check authentication and Firestore Security Rules.',
+  'unauthenticated': 'You are not authenticated. Please sign in again.',
+  'failed-precondition': 'Firestore configuration/database error.',
+  unavailable: 'Firebase is temporarily unavailable. Check your connection.',
+  'invalid-argument': 'Invalid data was sent to Firestore.',
 }
 
 export function firebaseErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === 'object' && 'code' in error && typeof error.code === 'string') {
-    return messages[error.code] || fallback
+    const code = error.code.startsWith('firestore/') ? error.code.slice('firestore/'.length) : error.code
+    if (messages[error.code] || messages[code]) return messages[error.code] || messages[code]
+    if (code === 'unknown' || !code.startsWith('auth/')) {
+      const message = 'message' in error && typeof error.message === 'string' ? error.message : ''
+      if (message) return `Firestore error: ${message}`
+    }
+    return fallback
   }
   if (error instanceof Error && error.message) return error.message
   return fallback

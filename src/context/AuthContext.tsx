@@ -12,8 +12,9 @@ import {
   type User,
 } from 'firebase/auth'
 import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore'
-import { auth, authPersistenceReady, COLLECTIONS, db, firebaseConfigured } from '../lib/firebase'
+import { auth, authPersistenceReady, COLLECTIONS, db, firebaseConfigured, requireCurrentUser } from '../lib/firebase'
 import { firebaseErrorMessage } from '../utils/firebaseErrors'
+import { withFirestoreWrite } from '../utils/firestoreWrites'
 
 export type ProfilePreferences = { currency: string; theme: 'dark' | 'light' }
 export type EditableProfile = { displayName: string; email: string; photoURL: string; currency: string; theme: 'dark' | 'light' }
@@ -103,18 +104,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register: async (name, email, password) => {
       if (!auth) throw new Error('Firebase is not configured. Add your Firebase environment variables to create an account.')
       if (!db) throw new Error('User profile storage is unavailable. Check your Firebase configuration.')
+      const firestore = db
       await authPersistenceReady
       const credential = await createUserWithEmailAndPassword(auth, email, password)
       try {
         await updateProfile(credential.user, { displayName: name })
-        await setDoc(doc(db, COLLECTIONS.users, credential.user.uid), {
-          uid: credential.user.uid,
-          displayName: credential.user.displayName || name,
-          email: credential.user.email || email,
-          photoURL: credential.user.photoURL || '',
+        const currentUser = requireCurrentUser(credential.user.uid)
+        await withFirestoreWrite(() => setDoc(doc(firestore, COLLECTIONS.users, currentUser.uid), {
+          uid: currentUser.uid,
+          displayName: currentUser.displayName || name,
+          email: currentUser.email || email,
+          photoURL: currentUser.photoURL || '',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-        }, { merge: true })
+        }, { merge: true }))
       } catch (error) {
         setAuthError(firebaseErrorMessage(error, 'Your account was created, but its Firestore profile could not be saved.'))
         throw error
@@ -123,20 +126,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loginWithGoogle: async () => {
       if (!auth) throw new Error('Firebase is not configured. Add your Firebase environment variables to sign in.')
       if (!db) throw new Error('User profile storage is unavailable. Check your Firebase configuration.')
+      const firestore = db
       await authPersistenceReady
       const credential = await signInWithPopup(auth, new GoogleAuthProvider())
       try {
-        const profileRef = doc(db, COLLECTIONS.users, credential.user.uid)
+        const currentUser = requireCurrentUser(credential.user.uid)
+        const profileRef = doc(firestore, COLLECTIONS.users, currentUser.uid)
         const existingProfile = await getDoc(profileRef)
         const existing = existingProfile.data()
-        await setDoc(profileRef, {
-          uid: credential.user.uid,
-          email: credential.user.email || existing?.email || '',
-          displayName: credential.user.displayName || existing?.displayName || '',
-          photoURL: credential.user.photoURL || existing?.photoURL || '',
+        await withFirestoreWrite(() => setDoc(profileRef, {
+          uid: currentUser.uid,
+          email: currentUser.email || existing?.email || '',
+          displayName: currentUser.displayName || existing?.displayName || '',
+          photoURL: currentUser.photoURL || existing?.photoURL || '',
           ...(existingProfile.exists() ? {} : { createdAt: serverTimestamp() }),
           updatedAt: serverTimestamp(),
-        }, { merge: true })
+        }, { merge: true }))
       } catch (error) {
         setAuthError(firebaseErrorMessage(error, 'Your Google account signed in, but its Firestore profile could not be saved.'))
         throw error
@@ -157,15 +162,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       document.documentElement.dataset.theme = 'dark'
     },
     saveProfile: async (profile) => {
-      if (auth?.currentUser) {
-        if (!db) throw new Error('User profile storage is unavailable. Check your Firebase configuration.')
-        if (profile.email.trim() !== auth.currentUser.email) await updateEmail(auth.currentUser, profile.email.trim())
-        await updateProfile(auth.currentUser, { displayName: profile.displayName.trim(), photoURL: profile.photoURL.trim() || null })
-        await setDoc(doc(db, COLLECTIONS.users, auth.currentUser.uid), { uid: auth.currentUser.uid, email: profile.email.trim(), displayName: profile.displayName.trim(), photoURL: profile.photoURL.trim() || null, currency: profile.currency, theme: profile.theme, updatedAt: serverTimestamp() }, { merge: true })
-        setUser(auth.currentUser)
-      } else {
-        throw new Error('Sign in again before updating your profile.')
-      }
+      const currentUser = requireCurrentUser()
+      if (!db) throw new Error('User profile storage is unavailable. Check your Firebase configuration.')
+      const firestore = db
+      if (profile.email.trim() !== currentUser.email) await updateEmail(currentUser, profile.email.trim())
+      await updateProfile(currentUser, { displayName: profile.displayName.trim(), photoURL: profile.photoURL.trim() || null })
+      await withFirestoreWrite(() => setDoc(doc(firestore, COLLECTIONS.users, currentUser.uid), { uid: currentUser.uid, email: profile.email.trim(), displayName: profile.displayName.trim(), photoURL: profile.photoURL.trim() || null, currency: profile.currency, theme: profile.theme, updatedAt: serverTimestamp() }, { merge: true }))
+      setUser(currentUser)
       const nextPreferences = { currency: profile.currency, theme: profile.theme }
       setPreferences(nextPreferences)
       document.documentElement.dataset.theme = nextPreferences.theme

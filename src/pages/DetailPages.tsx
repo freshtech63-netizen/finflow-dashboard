@@ -108,8 +108,8 @@ export function TransactionsPage() {
     try {
       await deleteTransaction(transaction.id)
       setNotice(`${transaction.name} was deleted.`)
-    } catch {
-      setError('This transaction could not be deleted. Please try again.')
+    } catch (caught) {
+      setError(firebaseErrorMessage(caught, 'This transaction could not be deleted.'))
     }
   }
 
@@ -277,8 +277,8 @@ export function InvoicesPage() {
       await removeInvoice(user.uid, invoice.id)
       setInvoices((previous) => previous.filter((item) => item.id !== invoice.id))
       setNotice(`Invoice ${invoice.invoiceNumber} deleted.`)
-    } catch {
-      setError('This invoice could not be deleted. Please try again.')
+    } catch (caught) {
+      setError(firebaseErrorMessage(caught, 'This invoice could not be deleted.'))
     } finally {
       setBusyId('')
     }

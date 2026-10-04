@@ -24,8 +24,8 @@ export function SavingsGoalsPage() {
     try {
       await deleteSavingsGoal(goal.id)
       setNotice(`${goal.name} goal deleted.`)
-    } catch {
-      setError('This savings goal could not be deleted. Please try again.')
+    } catch (caught) {
+      setError(firebaseErrorMessage(caught, 'This savings goal could not be deleted.'))
     } finally {
       setBusyId('')
     }

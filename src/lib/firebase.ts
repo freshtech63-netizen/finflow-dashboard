@@ -44,3 +44,12 @@ export const db = firebaseApp
 export const authPersistenceReady = auth
   ? setPersistence(auth, browserLocalPersistence)
   : Promise.resolve()
+
+export function requireCurrentUser(expectedUid?: string) {
+  const currentUser = auth?.currentUser
+  if (!currentUser) throw new Error('You are not authenticated. Please sign in again.')
+  if (expectedUid && currentUser.uid !== expectedUid) {
+    throw new Error('Your authentication changed. Please sign in again.')
+  }
+  return currentUser
+}

@@ -55,8 +55,8 @@ export function ScheduledPaymentsPage({ type }: { type: ScheduleType }) {
     setBusyId(record.id)
     try {
       await save(recordToInput(record, status), record.id)
-    } catch {
-      setError(`Could not update ${record.name}. Please try again.`)
+    } catch (caught) {
+      setError(firebaseErrorMessage(caught, `Could not update ${record.name}.`))
     } finally {
       setBusyId('')
     }
@@ -69,8 +69,8 @@ export function ScheduledPaymentsPage({ type }: { type: ScheduleType }) {
       await deleteScheduledPayment(user.uid, type, record.id)
       setRecords((previous) => previous.filter((item) => item.id !== record.id))
       setNotice(`${record.name} deleted.`)
-    } catch {
-      setError(`${record.name} could not be deleted. Please try again.`)
+    } catch (caught) {
+      setError(firebaseErrorMessage(caught, `${record.name} could not be deleted.`))
     } finally {
       setBusyId('')
     }

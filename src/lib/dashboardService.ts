@@ -1,7 +1,8 @@
 import { collection, deleteDoc, doc, getDocs, query, runTransaction, serverTimestamp, setDoc, where } from 'firebase/firestore'
-import { COLLECTIONS, db } from './firebase'
+import { COLLECTIONS, db, requireCurrentUser } from './firebase'
 import type { DashboardData, NewSavingsGoal, NewTransaction, NewWallet, SavingsGoal, Transaction, Wallet } from '../types'
 import { expenseCategoryColor, normalizeExpenseCategory } from '../utils/finance'
+import { withFirestoreWrite } from '../utils/firestoreWrites'
 
 function normalizeTransaction(transaction: Partial<Transaction> & { id: string; amount: number; direction: 'income' | 'expense' }): Transaction {
   const name = transaction.name || 'Transaction'
@@ -86,12 +87,14 @@ export async function getDashboardData(uid: string): Promise<DashboardData> {
 }
 
 export async function saveWallet(uid: string, input: NewWallet, walletId?: string, requestId?: string): Promise<Wallet> {
+  const currentUser = requireCurrentUser(uid)
   const id = walletId || requestId || globalThis.crypto?.randomUUID?.() || `${Date.now()}`
   const wallet = { ...input, id, status: input.status || 'active' }
   if (!db) throw new Error('Wallet storage is unavailable. Check your Firebase configuration.')
+  const firestore = db
   if (!navigator.onLine) throw new Error('Your device is offline. Reconnect to the internet, then try saving the account again.')
-  const reference = doc(db, COLLECTIONS.wallets, id)
-  const write = setDoc(reference, { ...wallet, userId: uid, updatedAt: serverTimestamp(), ...(!walletId ? { createdAt: serverTimestamp() } : {}) }, { merge: Boolean(walletId) })
+  const reference = doc(firestore, COLLECTIONS.wallets, id)
+  const write = withFirestoreWrite(() => setDoc(reference, { ...wallet, userId: currentUser.uid, updatedAt: serverTimestamp(), ...(!walletId ? { createdAt: serverTimestamp() } : {}) }, { merge: Boolean(walletId) }))
   await new Promise<void>((resolve, reject) => {
     const timeout = window.setTimeout(() => {
       reject(new Error('Firestore has not confirmed this save after 15 seconds. Reload the app to apply the network transport fix. If it still times out, verify the published rules and that the Firestore database in finflow-37b6e is in Native mode. Retrying this request will not create a duplicate account.'))
@@ -108,33 +111,38 @@ export async function saveWallet(uid: string, input: NewWallet, walletId?: strin
 }
 
 export async function deleteWallet(uid: string, walletId: string): Promise<void> {
-  if (!uid) throw new Error('Sign in again before deleting a wallet.')
+  requireCurrentUser(uid)
   if (!db) throw new Error('Wallet storage is unavailable. Check your Firebase configuration.')
-  await deleteDoc(doc(db, COLLECTIONS.wallets, walletId))
+  const firestore = db
+  await withFirestoreWrite(() => deleteDoc(doc(firestore, COLLECTIONS.wallets, walletId)))
 }
 
 export async function saveSavingsGoal(uid: string, input: NewSavingsGoal, goalId?: string): Promise<SavingsGoal> {
+  const currentUser = requireCurrentUser(uid)
   const id = goalId || globalThis.crypto?.randomUUID?.() || `${Date.now()}`
   const goal = { ...input, id }
   if (!db) throw new Error('Savings goal storage is unavailable. Check your Firebase configuration.')
-  await setDoc(doc(db, COLLECTIONS.savingsGoals, id), { ...goal, userId: uid, updatedAt: serverTimestamp(), ...(!goalId ? { createdAt: serverTimestamp() } : {}) }, { merge: Boolean(goalId) })
+  const firestore = db
+  await withFirestoreWrite(() => setDoc(doc(firestore, COLLECTIONS.savingsGoals, id), { ...goal, userId: currentUser.uid, updatedAt: serverTimestamp(), ...(!goalId ? { createdAt: serverTimestamp() } : {}) }, { merge: Boolean(goalId) }))
   return goal
 }
 
 export async function deleteSavingsGoal(uid: string, goalId: string): Promise<void> {
-  if (!uid) throw new Error('Sign in again before deleting a savings goal.')
+  requireCurrentUser(uid)
   if (!db) throw new Error('Savings goal storage is unavailable. Check your Firebase configuration.')
-  await deleteDoc(doc(db, COLLECTIONS.savingsGoals, goalId))
+  const firestore = db
+  await withFirestoreWrite(() => deleteDoc(doc(firestore, COLLECTIONS.savingsGoals, goalId)))
 }
 
 export async function saveTransaction(uid: string, input: NewTransaction, transactionId?: string): Promise<Transaction> {
+  const currentUser = requireCurrentUser(uid)
   const id = transactionId || globalThis.crypto?.randomUUID?.() || `${Date.now()}`
   const normalized = normalizeTransaction({ ...input, id })
   const firestore = db
   if (!firestore) throw new Error('Transaction storage is unavailable. Check your Firebase configuration.')
 
   const transactionRef = transactionId ? doc(firestore, COLLECTIONS.transactions, transactionId) : doc(collection(firestore, COLLECTIONS.transactions))
-  await runTransaction(firestore, async (transaction) => {
+  await withFirestoreWrite(() => runTransaction(firestore, async (transaction) => {
     const previousSnapshot = transactionId ? await transaction.get(transactionRef) : null
     if (transactionId && (!previousSnapshot?.exists() || previousSnapshot.data().userId !== uid)) throw new Error('This transaction is unavailable.')
     const previous = previousSnapshot?.data() as (Transaction & { userId: string }) | undefined
@@ -153,7 +161,7 @@ export async function saveTransaction(uid: string, input: NewTransaction, transa
     const previousCreatedAt = previousSnapshot?.data()?.createdAt
     transaction.set(transactionRef, {
       ...normalized,
-      userId: uid,
+      userId: currentUser.uid,
       createdAt: previousCreatedAt || serverTimestamp(),
       ...(previousSnapshot ? { updatedAt: serverTimestamp() } : {}),
     })
@@ -165,15 +173,16 @@ export async function saveTransaction(uid: string, input: NewTransaction, transa
       if (snapshot.data().userId !== uid) throw new Error('This wallet is unavailable.')
       transaction.update(reference, { balance: Number(snapshot.data().balance || 0) + (deltaByWallet.get(walletId) || 0), updatedAt: serverTimestamp() })
     }
-  })
+  }))
   return { ...normalized, id }
 }
 
 export async function deleteTransaction(uid: string, transactionId: string): Promise<void> {
+  requireCurrentUser(uid)
   if (!db) throw new Error('Transaction storage is unavailable. Check your Firebase configuration.')
   const firestore = db
   const reference = doc(firestore, COLLECTIONS.transactions, transactionId)
-  await runTransaction(firestore, async (transaction) => {
+  await withFirestoreWrite(() => runTransaction(firestore, async (transaction) => {
     const snapshot = await transaction.get(reference)
     if (!snapshot.exists() || snapshot.data().userId !== uid) throw new Error('This transaction is unavailable.')
     const record = snapshot.data() as Transaction
@@ -184,5 +193,5 @@ export async function deleteTransaction(uid: string, transactionId: string): Pro
       transaction.update(walletReference, { balance: Number(walletSnapshot.data().balance || 0) + reverse, updatedAt: serverTimestamp() })
     }
     transaction.delete(reference)
-  })
+  }))
 }

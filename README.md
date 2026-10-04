@@ -13,7 +13,7 @@ FinFlow requires Firebase configuration to sign in. Without it, the authenticati
 
 ## Firebase setup
 
-The application is configured for Firebase project `finflow-37b6e`. Its local `.env.local` file is intentionally not committed.
+The application is configured for Firebase project finflow Its local `.env.local` file is intentionally not committed.
 
 1. In **Project settings → General → Your apps**, confirm the registered Web App configuration matches `.env.local`. Keep the keys private to the local environment and deployment secret store; never commit `.env.local`.
 2. In **Authentication → Sign-in method**, enable **Email/Password** and **Google**. For Google, set a support email and save the provider.

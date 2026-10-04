@@ -1,6 +1,6 @@
 import { getApps, initializeApp } from 'firebase/app'
 import { browserLocalPersistence, getAuth, GoogleAuthProvider, onAuthStateChanged, setPersistence, type User } from 'firebase/auth'
-import { getFirestore } from 'firebase/firestore'
+import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from 'firebase/firestore'
 
 export const COLLECTIONS = {
   users: 'users',
@@ -29,7 +29,11 @@ if (config.projectId !== 'finflow-37b6e') {
 
 export const app = getApps().find((firebaseApp) => firebaseApp.name === '[DEFAULT]') || initializeApp(config)
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({
+    tabManager: persistentSingleTabManager(undefined),
+  }),
+})
 export const googleProvider = new GoogleAuthProvider()
 export const firebaseConfigured = true
 export const authPersistenceReady = setPersistence(auth, browserLocalPersistence)

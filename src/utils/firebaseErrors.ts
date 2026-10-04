@@ -18,6 +18,9 @@ const messages: Record<string, string> = {
   'failed-precondition': 'Firestore configuration/database error.',
   unavailable: 'Firestore is unavailable. Check the Firebase connection.',
   'invalid-argument': 'Invalid data was sent to Firestore.',
+  'not-found': 'The requested Firestore document was not found.',
+  'already-exists': 'This Firestore document already exists.',
+  'deadline-exceeded': 'Firestore request deadline exceeded. Check the connection and try again.',
 }
 
 const firestoreMessages: Record<string, string> = {
@@ -28,6 +31,7 @@ const firestoreMessages: Record<string, string> = {
   'invalid-argument': 'Invalid data was sent to Firestore.',
   'not-found': 'The requested Firestore document was not found.',
   'already-exists': 'This Firestore document already exists.',
+  'deadline-exceeded': 'Firestore request deadline exceeded. Check the connection and try again.',
 }
 
 export function getFirestoreErrorMessage(error: unknown): string {

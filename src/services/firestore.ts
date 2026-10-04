@@ -3,6 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  getDoc,
   getDocs,
   query,
   runTransaction,
@@ -90,6 +91,40 @@ export async function getTransactions(): Promise<Transaction[]> {
   const user = await getAuthenticatedUser()
   const records = await getDocs(query(collection(db, COLLECTIONS.transactions), where('userId', '==', user.uid)))
   return records.docs.map(transactionRecord)
+}
+
+export async function testFirestoreWrite(): Promise<string> {
+  if (!import.meta.env.DEV) {
+    throw new Error('The Firestore connection test is available only during local development.')
+  }
+  const user = await getAuthenticatedUser()
+  let testReference: DocumentReference | undefined
+
+  try {
+    testReference = await addDoc(collection(db, COLLECTIONS.wallets), {
+      userId: user.uid,
+      name: 'Firestore Test',
+      balance: 0,
+      currency: 'NGN',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+    const saved = await getDoc(testReference)
+    if (!saved.exists()) throw new Error('Firestore test write completed, but the test document could not be read.')
+    return testReference.id
+  } catch (error) {
+    logFirestoreWriteError(error)
+    throw error
+  } finally {
+    if (testReference) {
+      try {
+        await deleteDoc(testReference)
+      } catch (error) {
+        logFirestoreWriteError(error)
+        throw error
+      }
+    }
+  }
 }
 
 export async function createTransaction(value: NewTransaction): Promise<Transaction> {
